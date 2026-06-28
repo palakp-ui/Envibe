@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { RELATIONAL_STYLE_PROFILES, TRAIT_LABELS } from "@/lib/tasks";
 import { readStore } from "@/lib/storage";
-import type { ScoreReport, TraitKey } from "@/lib/types";
+import type { TraitKey } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 

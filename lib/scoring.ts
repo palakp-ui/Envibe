@@ -94,17 +94,20 @@ function scoreBalloonPop(events: TelemetryEvent[]): TaskScore {
     .filter((value) => value > 0);
   const afterBurstAdjustments = rounds
     .slice(1)
-    .map((roundEvent, index) => {
+    .reduce<number[]>((adjustments, roundEvent, index) => {
       const previous = rounds[index];
       if (previous.payload.outcome !== "burst") {
-        return null;
+        return adjustments;
       }
 
-      return asNumber(roundEvent.payload.pumps) < asNumber(previous.payload.pumps)
-        ? 1
-        : 0;
-    })
-    .filter((value): value is number => value !== null);
+      adjustments.push(
+        asNumber(roundEvent.payload.pumps) < asNumber(previous.payload.pumps)
+          ? 1
+          : 0,
+      );
+
+      return adjustments;
+    }, []);
   const learningAdjustment = afterBurstAdjustments.length
     ? mean(afterBurstAdjustments)
     : 0.65;
