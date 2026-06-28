@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ROLE_CONFIGS } from "@/lib/tasks";
 import type {
   AuditLogEntry,
   CandidateSession,
@@ -22,7 +21,6 @@ function defaultStore(): DataStore {
     telemetry: [],
     reports: [],
     auditLog: [],
-    roleConfigs: ROLE_CONFIGS,
   };
 }
 
@@ -45,7 +43,6 @@ export async function readStore(): Promise<DataStore> {
   return {
     ...defaultStore(),
     ...parsed,
-    roleConfigs: parsed.roleConfigs?.length ? parsed.roleConfigs : ROLE_CONFIGS,
   };
 }
 
@@ -85,7 +82,6 @@ export async function createSession(
     entityId: created.id,
     createdAt: new Date().toISOString(),
     metadata: {
-      targetRoleId: created.targetRoleId,
       fairnessConsent: created.demographics.consentToFairnessMonitoring,
     },
   });

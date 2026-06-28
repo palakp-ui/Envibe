@@ -9,19 +9,21 @@ flows.
 
 - Candidate intake with optional fairness-monitoring consent.
 - Two browser-based behavioral tasks:
-  - **ASR Calibration**: relational cue interpretation and confidence
-    calibration under ambiguity.
+  - **Balloon Pop**: a visual risk-reward mini-game that maps pumping,
+    banking, popping, and learning-after-loss behavior to psychological trait
+    signals.
   - **Auditory Screen**: target-tone detection, response timing, and false-alarm
     restraint.
 - Backend telemetry capture through Next.js API routes.
 - Server-side scoring pipeline that produces:
   - task metrics,
   - relational trait scores,
-  - relational style profile matches,
+  - system-assigned relational style profile matches,
   - explainable report evidence and caveats.
-- Developer dashboard for candidate/profile comparison and role-weighted scores.
-- Admin governance console with audit logs, role configuration, and fairness
-  monitoring hooks.
+- Developer dashboard for candidate/profile comparison and cognitive trait
+  breakdowns.
+- Admin governance console with audit logs, cognitive-task governance notes, and
+  fairness monitoring hooks.
 - File-backed MVP persistence in `.relational-data/store.json`.
 
 ## Getting started

@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ASR_TRIALS,
-  AUDITORY_TRIALS,
-  ROLE_CONFIGS,
-  TASKS,
-} from "@/lib/tasks";
+import { AUDITORY_TRIALS, BALLOON_ROUNDS, TASKS } from "@/lib/tasks";
 import type {
   CandidateDemographics,
   CandidateSession,
@@ -16,7 +11,7 @@ import type {
   TelemetryEventType,
 } from "@/lib/types";
 
-type Stage = "intake" | "asr" | "auditory" | "report";
+type Stage = "intake" | "balloon" | "auditory" | "report";
 
 type TelemetryPayload = Record<string, unknown>;
 
@@ -67,7 +62,6 @@ export function AssessmentRunner() {
   const [stage, setStage] = useState<Stage>("intake");
   const [session, setSession] = useState<CandidateSession | null>(null);
   const [candidateName, setCandidateName] = useState("");
-  const [targetRoleId, setTargetRoleId] = useState(ROLE_CONFIGS[0].id);
   const [demographics, setDemographics] = useState<CandidateDemographics>({
     consentToFairnessMonitoring: false,
     ageBand: "prefer-not",
@@ -76,10 +70,16 @@ export function AssessmentRunner() {
   });
   const [error, setError] = useState("");
   const [isBusy, setIsBusy] = useState(false);
-  const [asrIndex, setAsrIndex] = useState(0);
-  const [asrChoice, setAsrChoice] = useState("");
-  const [confidence, setConfidence] = useState(60);
-  const [asrFeedback, setAsrFeedback] = useState("");
+  const [balloonIndex, setBalloonIndex] = useState(0);
+  const [balloonPumps, setBalloonPumps] = useState(0);
+  const [balloonPoints, setBalloonPoints] = useState(0);
+  const [totalBankedPoints, setTotalBankedPoints] = useState(0);
+  const [balloonState, setBalloonState] = useState<
+    "active" | "banked" | "burst"
+  >("active");
+  const [balloonMessage, setBalloonMessage] = useState(
+    "Pump to grow the balloon, then bank before it pops.",
+  );
   const [trialStartedAt, setTrialStartedAt] = useState<number>(() =>
     performance.now(),
   );
@@ -96,11 +96,11 @@ export function AssessmentRunner() {
   const timeoutRef = useRef<number | null>(null);
   const toneRef = useRef<number | null>(null);
 
-  const currentAsrTrial = ASR_TRIALS[asrIndex];
+  const currentBalloonRound = BALLOON_ROUNDS[balloonIndex];
   const currentAuditoryTrial = AUDITORY_TRIALS[auditoryIndex];
   const progress = useMemo(() => {
-    if (stage === "asr") {
-      return (asrIndex / ASR_TRIALS.length) * 50;
+    if (stage === "balloon") {
+      return (balloonIndex / BALLOON_ROUNDS.length) * 50;
     }
 
     if (stage === "auditory") {
@@ -112,7 +112,7 @@ export function AssessmentRunner() {
     }
 
     return 0;
-  }, [asrIndex, auditoryIndex, stage]);
+  }, [balloonIndex, auditoryIndex, stage]);
 
   useEffect(() => {
     return () => {
@@ -153,20 +153,19 @@ export function AssessmentRunner() {
         "/api/sessions",
         {
           candidateName,
-          targetRoleId,
           demographics,
         },
       );
 
       setSession(response.session);
-      setStage("asr");
+      setStage("balloon");
       setTrialStartedAt(performance.now());
       await postJson("/api/telemetry", {
         sessionId: response.session.id,
-        taskId: "asr-calibration",
+        taskId: "balloon-pop",
         eventType: "task_started",
         clientTime: new Date().toISOString(),
-        payload: { taskLabel: "ASR Calibration" },
+        payload: { taskLabel: "Balloon Pop" },
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not start.");
@@ -175,54 +174,106 @@ export function AssessmentRunner() {
     }
   }
 
-  async function submitAsrResponse() {
-    if (!currentAsrTrial || !asrChoice) {
+  async function pumpBalloon() {
+    if (!currentBalloonRound || balloonState !== "active") {
       return;
     }
 
-    const correct = asrChoice === currentAsrTrial.consensusOptionId;
+    setError("");
+    const nextPumpCount = balloonPumps + 1;
     const responseMs = Math.round(performance.now() - trialStartedAt);
 
-    setIsBusy(true);
+    try {
+      await recordTelemetry(
+        "balloon_pump",
+        {
+          roundId: currentBalloonRound.id,
+          pumpNumber: nextPumpCount,
+          maxPumps: currentBalloonRound.maxPumps,
+          responseMs,
+        },
+        "balloon-pop",
+      );
+
+      if (nextPumpCount >= currentBalloonRound.burstAt) {
+        setBalloonState("burst");
+        setBalloonMessage("Pop. This round earned 0 points.");
+        setBalloonPumps(nextPumpCount);
+        setBalloonPoints(0);
+        await recordTelemetry(
+          "balloon_round_completed",
+          {
+            roundId: currentBalloonRound.id,
+            outcome: "burst",
+            pumps: nextPumpCount,
+            maxPumps: currentBalloonRound.maxPumps,
+            bankedPoints: 0,
+            responseMs,
+          },
+          "balloon-pop",
+        );
+        return;
+      }
+
+      setBalloonPumps(nextPumpCount);
+      setBalloonPoints(nextPumpCount * currentBalloonRound.rewardPerPump);
+      setBalloonMessage("The balloon grew. Bank now or try another pump.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not save pump.",
+      );
+    }
+  }
+
+  async function bankBalloon() {
+    if (!currentBalloonRound || balloonState !== "active") {
+      return;
+    }
+
+    const responseMs = Math.round(performance.now() - trialStartedAt);
+    const bankedPoints = balloonPumps * currentBalloonRound.rewardPerPump;
+
     setError("");
 
     try {
       await recordTelemetry(
-        "asr_response",
+        "balloon_round_completed",
         {
-          trialId: currentAsrTrial.id,
-          selectedOptionId: asrChoice,
-          correct,
-          confidence,
+          roundId: currentBalloonRound.id,
+          outcome: "banked",
+          pumps: balloonPumps,
+          maxPumps: currentBalloonRound.maxPumps,
+          bankedPoints,
           responseMs,
         },
-        "asr-calibration",
+        "balloon-pop",
       );
-      setAsrFeedback(currentAsrTrial.learningSignal);
+      setBalloonState("banked");
+      setTotalBankedPoints((value) => value + bankedPoints);
+      setBalloonMessage(`Banked ${bankedPoints} points for this round.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not save response.",
+        caught instanceof Error ? caught.message : "Could not bank points.",
       );
-    } finally {
-      setIsBusy(false);
     }
   }
 
-  async function continueAsr() {
-    setAsrChoice("");
-    setConfidence(60);
-    setAsrFeedback("");
+  async function continueBalloon() {
+    setBalloonPumps(0);
+    setBalloonPoints(0);
+    setBalloonState("active");
+    setBalloonMessage("Pump to grow the balloon, then bank before it pops.");
 
-    if (asrIndex < ASR_TRIALS.length - 1) {
-      setAsrIndex((value) => value + 1);
+    if (balloonIndex < BALLOON_ROUNDS.length - 1) {
+      setBalloonIndex((value) => value + 1);
       setTrialStartedAt(performance.now());
       return;
     }
 
     await recordTelemetry(
       "task_completed",
-      { completedTrials: ASR_TRIALS.length },
-      "asr-calibration",
+      { completedRounds: BALLOON_ROUNDS.length, totalBankedPoints },
+      "balloon-pop",
     );
     await recordTelemetry(
       "task_started",
@@ -381,19 +432,6 @@ export function AssessmentRunner() {
               />
             </label>
             <label>
-              Target role
-              <select
-                value={targetRoleId}
-                onChange={(event) => setTargetRoleId(event.target.value)}
-              >
-                {ROLE_CONFIGS.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               Age band
               <select
                 value={demographics.ageBand}
@@ -470,59 +508,80 @@ export function AssessmentRunner() {
         </section>
       ) : null}
 
-      {stage === "asr" && currentAsrTrial ? (
+      {stage === "balloon" && currentBalloonRound ? (
         <section className="stack">
           <span className="eyebrow">
-            {TASKS[0].label} - trial {asrIndex + 1} of {ASR_TRIALS.length}
+            {TASKS[0].label} - round {balloonIndex + 1} of{" "}
+            {BALLOON_ROUNDS.length}
           </span>
-          <h2>{currentAsrTrial.context}</h2>
-          <p className="lede">{currentAsrTrial.prompt}</p>
-          <div className="option-list">
-            {currentAsrTrial.options.map((option) => (
-              <button
-                aria-pressed={asrChoice === option.id}
-                className="option-button"
-                disabled={Boolean(asrFeedback)}
-                key={option.id}
-                onClick={() => setAsrChoice(option.id)}
-                type="button"
-              >
-                <strong>{option.label}</strong>
-                <p>{option.relationalCue}</p>
-              </button>
-            ))}
+          <h2>Grow the balloon, then bank before it pops.</h2>
+          <p className="lede">{balloonMessage}</p>
+          <div className="panel stack" style={{ alignItems: "center" }}>
+            <div
+              aria-label={`Balloon size ${balloonPumps}`}
+              style={{
+                alignItems: "center",
+                background:
+                  balloonState === "burst"
+                    ? "var(--rose)"
+                    : "linear-gradient(145deg, #5d8df5, #7dc6a2)",
+                borderRadius: "999px 999px 780px 780px",
+                color: "#ffffff",
+                display: "flex",
+                fontSize: "2rem",
+                fontWeight: 900,
+                height: `${110 + balloonPumps * 14}px`,
+                justifyContent: "center",
+                transition: "all 160ms ease",
+                width: `${96 + balloonPumps * 12}px`,
+              }}
+            >
+              {balloonState === "burst" ? "POP" : balloonPoints}
+            </div>
+            <div className="grid three" style={{ width: "100%" }}>
+              <div className="metric">
+                <strong>{balloonPumps}</strong>
+                <span>Pumps this round</span>
+              </div>
+              <div className="metric">
+                <strong>{balloonPoints}</strong>
+                <span>Current round value</span>
+              </div>
+              <div className="metric">
+                <strong>{totalBankedPoints}</strong>
+                <span>Total banked</span>
+              </div>
+            </div>
           </div>
-          <label>
-            Confidence: {confidence}%
-            <input
-              disabled={Boolean(asrFeedback)}
-              max="100"
-              min="0"
-              onChange={(event) => setConfidence(Number(event.target.value))}
-              type="range"
-              value={confidence}
-            />
-          </label>
-          {asrFeedback ? (
-            <div className="warning">{asrFeedback}</div>
-          ) : null}
           <div className="actions">
-            {!asrFeedback ? (
-              <button
-                className="primary"
-                disabled={!asrChoice || isBusy}
-                onClick={() => void submitAsrResponse()}
-                type="button"
-              >
-                Submit response
-              </button>
+            {balloonState === "active" ? (
+              <>
+                <button
+                  className="primary"
+                  disabled={isBusy}
+                  onClick={() => void pumpBalloon()}
+                  type="button"
+                >
+                  Pump
+                </button>
+                <button
+                  className="secondary"
+                  disabled={isBusy || balloonPumps === 0}
+                  onClick={() => void bankBalloon()}
+                  type="button"
+                >
+                  Bank points
+                </button>
+              </>
             ) : (
               <button
                 className="primary"
-                onClick={() => void continueAsr()}
+                onClick={() => void continueBalloon()}
                 type="button"
               >
-                Continue
+                {balloonIndex < BALLOON_ROUNDS.length - 1
+                  ? "Next balloon"
+                  : "Continue to auditory screen"}
               </button>
             )}
           </div>

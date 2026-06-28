@@ -16,7 +16,7 @@ export default async function ReportPage({
     notFound();
   }
 
-  const { report, session, events } = bundle;
+  const { report, events } = bundle;
 
   return (
     <main className="page stack">
@@ -44,8 +44,8 @@ export default async function ReportPage({
             <span>Telemetry events</span>
           </div>
           <div className="metric">
-            <strong>{session.targetRoleId}</strong>
-            <span>Target role</span>
+            <strong>{report.profileMatches[0]?.label}</strong>
+            <span>Assigned by system</span>
           </div>
           <div className="metric">
             <strong>{new Date(report.generatedAt).toLocaleDateString()}</strong>
