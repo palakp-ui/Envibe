@@ -4,7 +4,7 @@
   "private": true,
   "description": "MVP behavioral assessment platform for relational style profiling.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
