@@ -5,7 +5,6 @@ import type { CandidateDemographics } from "@/lib/types";
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     candidateName?: string;
-    targetRoleId?: string;
     demographics?: Partial<CandidateDemographics>;
   };
 
@@ -18,7 +17,6 @@ export async function POST(request: Request) {
 
   const session = await createSession({
     candidateName: body.candidateName.trim(),
-    targetRoleId: body.targetRoleId || "relationship-coach",
     demographics: {
       consentToFairnessMonitoring:
         body.demographics?.consentToFairnessMonitoring === true,

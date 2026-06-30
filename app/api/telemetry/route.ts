@@ -7,7 +7,8 @@ const VALID_TASK_IDS = new Set(TASKS.map((task) => task.id));
 const VALID_EVENT_TYPES = new Set<TelemetryEventType>([
   "session_created",
   "task_started",
-  "asr_response",
+  "balloon_pump",
+  "balloon_round_completed",
   "auditory_trial_started",
   "auditory_response",
   "task_completed",

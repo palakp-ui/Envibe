@@ -1,6 +1,6 @@
 import {
-  ASR_TRIALS,
   AUDITORY_TRIALS,
+  BALLOON_ROUNDS,
   RELATIONAL_STYLE_PROFILES,
   TRAIT_LABELS,
 } from "@/lib/tasks";
@@ -67,41 +67,77 @@ function round(value: number, digits = 1) {
   return Math.round(value * factor) / factor;
 }
 
-function scoreAsrCalibration(events: TelemetryEvent[]): TaskScore {
-  const responses = events.filter((event) => event.eventType === "asr_response");
-  const totalTrials = ASR_TRIALS.length;
-  const correctness = responses.map((event) =>
-    asBoolean(event.payload.correct) ? 1 : 0,
+function scoreBalloonPop(events: TelemetryEvent[]): TaskScore {
+  const rounds = events.filter(
+    (event) => event.eventType === "balloon_round_completed",
   );
-  const confidences = responses.map((event) =>
-    clamp(asNumber(event.payload.confidence), 0, 100),
-  );
-  const responseTimes = responses.map((event) =>
-    asNumber(event.payload.responseMs),
-  );
-  const calibrationErrors = responses.map((event) => {
-    const expectedConfidence = asBoolean(event.payload.correct) ? 100 : 0;
-    return Math.abs(expectedConfidence - clamp(asNumber(event.payload.confidence), 0, 100));
+  const totalRounds = BALLOON_ROUNDS.length;
+  const pumpCounts = rounds.map((event) => asNumber(event.payload.pumps));
+  const riskRatios = rounds.map((event) => {
+    const maxPumps = asNumber(event.payload.maxPumps, 12);
+    return maxPumps ? asNumber(event.payload.pumps) / maxPumps : 0;
   });
+  const bankedRounds = rounds.filter(
+    (event) => event.payload.outcome === "banked",
+  );
+  const burstRounds = rounds.filter((event) => event.payload.outcome === "burst");
+  const adjustedPumps = bankedRounds.map((event) =>
+    asNumber(event.payload.pumps),
+  );
+  const bankedPoints = rounds.reduce(
+    (sum, event) => sum + asNumber(event.payload.bankedPoints),
+    0,
+  );
+  const responseTimes = events
+    .filter((event) => event.eventType === "balloon_pump")
+    .map((event) => asNumber(event.payload.responseMs))
+    .filter((value) => value > 0);
+  const afterBurstAdjustments = rounds
+    .slice(1)
+    .reduce<number[]>((adjustments, roundEvent, index) => {
+      const previous = rounds[index];
+      if (previous.payload.outcome !== "burst") {
+        return adjustments;
+      }
 
-  const accuracy = mean(correctness);
-  const completion = totalTrials === 0 ? 0 : responses.length / totalTrials;
-  const calibrationError = mean(calibrationErrors) / 100;
-  const confidence = mean(confidences) / 100;
-  const medianResponseMs = median(responseTimes);
+      adjustments.push(
+        asNumber(roundEvent.payload.pumps) < asNumber(previous.payload.pumps)
+          ? 1
+          : 0,
+      );
+
+      return adjustments;
+    }, []);
+  const learningAdjustment = afterBurstAdjustments.length
+    ? mean(afterBurstAdjustments)
+    : 0.65;
+  const completion = totalRounds ? rounds.length / totalRounds : 0;
+  const averageRiskRatio = mean(riskRatios);
+  const optimalExploration = clamp(1 - Math.abs(averageRiskRatio - 0.58) / 0.58, 0, 1);
+  const burstRate = rounds.length ? burstRounds.length / rounds.length : 0;
+  const riskDiscipline = 1 - burstRate;
+  const pumpConsistency =
+    pumpCounts.length > 1
+      ? clamp(1 - standardDeviation(pumpCounts) / Math.max(mean(pumpCounts), 1), 0, 1)
+      : 0.6;
 
   return {
-    taskId: "asr-calibration",
-    label: "ASR Calibration",
+    taskId: "balloon-pop",
+    label: "Balloon Pop",
     metrics: {
-      accuracy: round(accuracy * 100),
       completion: round(completion * 100),
-      averageConfidence: round(confidence * 100),
-      calibrationError: round(calibrationError * 100),
-      medianResponseMs: round(medianResponseMs, 0),
+      averagePumps: round(mean(pumpCounts)),
+      adjustedAveragePumps: round(mean(adjustedPumps)),
+      burstRate: round(burstRate * 100),
+      riskDiscipline: round(riskDiscipline * 100),
+      optimalExploration: round(optimalExploration * 100),
+      learningAfterPop: round(learningAdjustment * 100),
+      pumpConsistency: round(pumpConsistency * 100),
+      bankedPoints: round(bankedPoints, 0),
+      medianPumpResponseMs: round(median(responseTimes), 0),
     },
     explanation:
-      "Compares consensus cue identification with stated confidence to estimate calibrated interpretation under relational ambiguity.",
+      "Maps balloon pumping behavior to one-to-one cognitive traits: exploration, restraint, reward banking, and learning after loss.",
   };
 }
 
@@ -153,11 +189,12 @@ function metric(taskScore: TaskScore, key: string) {
   return asNumber(taskScore.metrics[key]) / 100;
 }
 
-function buildTraitScores(asr: TaskScore, auditory: TaskScore): TraitScore[] {
-  const asrAccuracy = metric(asr, "accuracy");
-  const asrCompletion = metric(asr, "completion");
-  const confidence = metric(asr, "averageConfidence");
-  const calibrationQuality = 1 - metric(asr, "calibrationError");
+function buildTraitScores(balloon: TaskScore, auditory: TaskScore): TraitScore[] {
+  const balloonCompletion = metric(balloon, "completion");
+  const riskDiscipline = metric(balloon, "riskDiscipline");
+  const optimalExploration = metric(balloon, "optimalExploration");
+  const learningAfterPop = metric(balloon, "learningAfterPop");
+  const pumpConsistency = metric(balloon, "pumpConsistency");
   const hitRate = metric(auditory, "hitRate");
   const falseAlarmControl = 1 - metric(auditory, "falseAlarmRate");
   const auditoryCompletion = metric(auditory, "completion");
@@ -166,41 +203,46 @@ function buildTraitScores(asr: TaskScore, auditory: TaskScore): TraitScore[] {
   const speedBalance = rtMs
     ? clamp(1 - Math.abs(rtMs - 650) / 900, 0, 1)
     : 0.45;
-  const completion = mean([asrCompletion, auditoryCompletion]);
+  const completion = mean([balloonCompletion, auditoryCompletion]);
 
   const rawScores: Record<TraitKey, number> = {
     attunement:
       100 *
       (0.4 * hitRate +
         0.24 * falseAlarmControl +
-        0.24 * asrAccuracy +
+        0.18 * riskDiscipline +
+        0.06 * learningAfterPop +
         0.12 * consistency),
     emotionalCalibration:
-      100 * (0.45 * asrAccuracy + 0.45 * calibrationQuality + 0.1 * confidence),
+      100 *
+      (0.36 * riskDiscipline +
+        0.28 * optimalExploration +
+        0.22 * pumpConsistency +
+        0.14 * falseAlarmControl),
     responseFlexibility:
       100 *
       (0.32 * speedBalance +
         0.26 * consistency +
-        0.22 * asrAccuracy +
+        0.22 * learningAfterPop +
         0.2 * completion),
     patienceUnderAmbiguity:
       100 *
       (0.38 * falseAlarmControl +
-        0.28 * calibrationQuality +
+        0.28 * riskDiscipline +
         0.18 * consistency +
         0.16 * completion),
     boundaryClarity:
       100 *
       (0.42 * falseAlarmControl +
-        0.24 * calibrationQuality +
-        0.2 * asrAccuracy +
-        0.14 * (1 - Math.max(confidence - asrAccuracy, 0))),
+        0.28 * riskDiscipline +
+        0.16 * optimalExploration +
+        0.14 * pumpConsistency),
     socialLearningOrientation:
       100 *
       (0.34 * completion +
-        0.26 * calibrationQuality +
+        0.26 * learningAfterPop +
         0.22 * consistency +
-        0.18 * asrAccuracy),
+        0.18 * optimalExploration),
   };
 
   return TRAIT_KEYS.map((key) => ({
@@ -208,24 +250,24 @@ function buildTraitScores(asr: TaskScore, auditory: TaskScore): TraitScore[] {
     label: TRAIT_LABELS[key],
     score: round(clamp(rawScores[key])),
     explanation: traitExplanation(key),
-    evidence: traitEvidence(key, asr, auditory),
+    evidence: traitEvidence(key, balloon, auditory),
   }));
 }
 
 function traitExplanation(key: TraitKey) {
   const explanations: Record<TraitKey, string> = {
     attunement:
-      "Estimated from accurate signal detection, restrained false alarms, and relational cue reading.",
+      "Estimated from accurate signal detection, restrained false alarms, and careful risk control.",
     emotionalCalibration:
-      "Estimated from matching confidence to correctness when interpreting ambiguous relational statements.",
+      "Estimated from balancing exploration with restraint when reward and loss are uncertain.",
     responseFlexibility:
-      "Estimated from balanced response speed, response consistency, completion, and cue adaptation.",
+      "Estimated from balanced response speed, response consistency, completion, and adaptation after a popped balloon.",
     patienceUnderAmbiguity:
-      "Estimated from waiting through no-signal auditory trials and avoiding overconfident interpretations.",
+      "Estimated from waiting through no-signal auditory trials and banking points before overextending.",
     boundaryClarity:
-      "Estimated from false-alarm control, calibrated certainty, and accurate recognition of connected boundaries.",
+      "Estimated from false-alarm control, risk discipline, and consistent stopping behavior.",
     socialLearningOrientation:
-      "Estimated from completion, consistency, and responsiveness to calibration feedback.",
+      "Estimated from completion, consistency, and behavioral adjustment after feedback.",
   };
 
   return explanations[key];
@@ -233,39 +275,39 @@ function traitExplanation(key: TraitKey) {
 
 function traitEvidence(
   key: TraitKey,
-  asr: TaskScore,
+  balloon: TaskScore,
   auditory: TaskScore,
 ) {
   const evidence: Record<TraitKey, string[]> = {
     attunement: [
       `Auditory hit rate: ${auditory.metrics.hitRate}%`,
       `Auditory false-alarm rate: ${auditory.metrics.falseAlarmRate}%`,
-      `ASR cue accuracy: ${asr.metrics.accuracy}%`,
+      `Balloon risk discipline: ${balloon.metrics.riskDiscipline}%`,
     ],
     emotionalCalibration: [
-      `ASR calibration error: ${asr.metrics.calibrationError}%`,
-      `ASR average confidence: ${asr.metrics.averageConfidence}%`,
-      `ASR cue accuracy: ${asr.metrics.accuracy}%`,
+      `Optimal exploration: ${balloon.metrics.optimalExploration}%`,
+      `Balloon burst rate: ${balloon.metrics.burstRate}%`,
+      `Pump consistency: ${balloon.metrics.pumpConsistency}%`,
     ],
     responseFlexibility: [
       `Median hit response: ${auditory.metrics.medianHitResponseMs} ms`,
       `Response consistency: ${auditory.metrics.responseConsistency}%`,
-      `Assessment completion: ${round(mean([metric(asr, "completion"), metric(auditory, "completion")]) * 100)}%`,
+      `Learning after pop: ${balloon.metrics.learningAfterPop}%`,
     ],
     patienceUnderAmbiguity: [
       `No-signal restraint: ${round(100 - asNumber(auditory.metrics.falseAlarmRate))}%`,
-      `ASR calibration quality: ${round(100 - asNumber(asr.metrics.calibrationError))}%`,
+      `Balloon risk discipline: ${balloon.metrics.riskDiscipline}%`,
       `Auditory consistency: ${auditory.metrics.responseConsistency}%`,
     ],
     boundaryClarity: [
       `False-alarm control: ${round(100 - asNumber(auditory.metrics.falseAlarmRate))}%`,
-      `Connected-boundary cue coverage appears in the ASR item set.`,
-      `Confidence-over-accuracy balance: ${asr.metrics.averageConfidence}% confidence / ${asr.metrics.accuracy}% accuracy`,
+      `Adjusted average pumps on banked rounds: ${balloon.metrics.adjustedAveragePumps}`,
+      `Pump consistency: ${balloon.metrics.pumpConsistency}%`,
     ],
     socialLearningOrientation: [
-      `ASR completion: ${asr.metrics.completion}%`,
+      `Balloon completion: ${balloon.metrics.completion}%`,
       `Auditory completion: ${auditory.metrics.completion}%`,
-      `Calibration quality: ${round(100 - asNumber(asr.metrics.calibrationError))}%`,
+      `Learning after pop: ${balloon.metrics.learningAfterPop}%`,
     ],
   };
 
@@ -306,7 +348,7 @@ export function computeScoreReport(
 ): ScoreReport {
   const sessionEvents = events.filter((event) => event.sessionId === session.id);
   const taskScores = [
-    scoreAsrCalibration(sessionEvents),
+    scoreBalloonPop(sessionEvents),
     scoreAuditoryScreen(sessionEvents),
   ];
   const traitScores = buildTraitScores(taskScores[0], taskScores[1]);
@@ -320,11 +362,12 @@ export function computeScoreReport(
     taskScores,
     traitScores,
     profileMatches,
-    overallNarrative: `${session.candidateName} currently maps most closely to the ${topMatch.label} style (${topMatch.fit}% fit). This MVP report is descriptive and should be interpreted alongside interviews, consented context, and role-relevant evidence.`,
+    overallNarrative: `${session.candidateName} was assigned by the scoring system to the ${topMatch.label} style as the closest current match (${topMatch.fit}% fit). This MVP report is descriptive and should be interpreted alongside interviews, consented context, and other relationship-relevant evidence.`,
     caveats: [
       "This is an MVP behavioral signal, not a clinical diagnosis or a deterministic hiring recommendation.",
       "Scores should be monitored for group-level drift before being used in consequential decisions.",
       "Auditory results can be affected by device volume, hearing context, and browser audio settings.",
+      "Balloon Pop reflects risk-reward behavior in a mini-game and should not be overgeneralized without validation.",
     ],
   };
 }

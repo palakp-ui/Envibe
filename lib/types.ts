@@ -1,11 +1,12 @@
 export type ISODateString = string;
 
-export type TaskId = "asr-calibration" | "auditory-screen";
+export type TaskId = "balloon-pop" | "auditory-screen";
 
 export type TelemetryEventType =
   | "session_created"
   | "task_started"
-  | "asr_response"
+  | "balloon_pump"
+  | "balloon_round_completed"
   | "auditory_trial_started"
   | "auditory_response"
   | "task_completed"
@@ -21,7 +22,6 @@ export type CandidateDemographics = {
 export type CandidateSession = {
   id: string;
   candidateName: string;
-  targetRoleId: string;
   status: "in-progress" | "completed";
   createdAt: ISODateString;
   completedAt?: ISODateString;
@@ -89,19 +89,11 @@ export type AuditLogEntry = {
   metadata: Record<string, unknown>;
 };
 
-export type RoleConfig = {
-  id: string;
-  label: string;
-  description: string;
-  traitWeights: Record<TraitKey, number>;
-};
-
 export type DataStore = {
   sessions: CandidateSession[];
   telemetry: TelemetryEvent[];
   reports: ScoreReport[];
   auditLog: AuditLogEntry[];
-  roleConfigs: RoleConfig[];
 };
 
 export type FairnessGroupMetric = {

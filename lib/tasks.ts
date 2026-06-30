@@ -1,18 +1,10 @@
-import type { RoleConfig, TaskId, TraitKey } from "@/lib/types";
+import type { TaskId, TraitKey } from "@/lib/types";
 
-export type AsrOption = {
+export type BalloonRound = {
   id: string;
-  label: string;
-  relationalCue: string;
-};
-
-export type AsrTrial = {
-  id: string;
-  prompt: string;
-  context: string;
-  options: AsrOption[];
-  consensusOptionId: string;
-  learningSignal: string;
+  burstAt: number;
+  maxPumps: number;
+  rewardPerPump: number;
 };
 
 export type AuditoryTrial = {
@@ -32,16 +24,16 @@ export type AssessmentTask = {
 
 export const TASKS: AssessmentTask[] = [
   {
-    id: "asr-calibration",
-    label: "ASR Calibration",
+    id: "balloon-pop",
+    label: "Balloon Pop",
     cognitiveBasis:
-      "Confidence calibration and affective signal recognition under mild ambiguity.",
+      "Risk-reward learning, inhibitory control, reward sensitivity, and adaptation after loss.",
     relationalSignal:
-      "How accurately and humbly a person interprets relational cues before reacting.",
+      "How a person balances initiative, restraint, and learning from feedback in uncertain situations.",
     instructions: [
-      "Read each short interaction.",
-      "Select the relational cue you think is most likely.",
-      "Set your confidence level before submitting.",
+      "Pump the balloon to grow its value.",
+      "Bank before it pops to keep the points.",
+      "Each balloon has a different hidden pop point.",
     ],
   },
   {
@@ -59,112 +51,13 @@ export const TASKS: AssessmentTask[] = [
   },
 ];
 
-export const ASR_TRIALS: AsrTrial[] = [
-  {
-    id: "asr-1",
-    context: "A project partner replies after a tense meeting.",
-    prompt:
-      '"I can take another pass at the notes if that helps. I just want us to be aligned before we send them."',
-    options: [
-      {
-        id: "repair",
-        label: "Repair attempt",
-        relationalCue: "They are trying to reduce friction and restore shared ground.",
-      },
-      {
-        id: "withdrawal",
-        label: "Withdrawal",
-        relationalCue: "They are distancing themselves from the collaboration.",
-      },
-      {
-        id: "dominance",
-        label: "Control bid",
-        relationalCue: "They are trying to take over the decision.",
-      },
-    ],
-    consensusOptionId: "repair",
-    learningSignal:
-      "The statement offers help and names alignment, which usually signals repair rather than control.",
-  },
-  {
-    id: "asr-2",
-    context: "A friend responds to a last-minute change of plans.",
-    prompt:
-      '"Okay. I wish I had known earlier, but I understand things came up."',
-    options: [
-      {
-        id: "boundary",
-        label: "Boundary with continued connection",
-        relationalCue:
-          "They are naming an impact while preserving goodwill.",
-      },
-      {
-        id: "rejection",
-        label: "Rejection",
-        relationalCue: "They are ending the relationship or withdrawing care.",
-      },
-      {
-        id: "approval",
-        label: "Unqualified approval",
-        relationalCue: "They have no unmet need or concern.",
-      },
-    ],
-    consensusOptionId: "boundary",
-    learningSignal:
-      "The phrase combines impact language with understanding, a common cue for a connected boundary.",
-  },
-  {
-    id: "asr-3",
-    context: "A teammate sees a mistake in a shared document.",
-    prompt:
-      '"Can we slow down for a second and check this section together? I may be missing something."',
-    options: [
-      {
-        id: "collaborative-check",
-        label: "Collaborative check",
-        relationalCue: "They are inviting joint attention without assigning blame.",
-      },
-      {
-        id: "avoidance",
-        label: "Avoidance",
-        relationalCue: "They are avoiding accountability for a problem.",
-      },
-      {
-        id: "criticism",
-        label: "Personal criticism",
-        relationalCue: "They are implying incompetence.",
-      },
-    ],
-    consensusOptionId: "collaborative-check",
-    learningSignal:
-      "Joint language and uncertainty markers point toward collaboration, not personal criticism.",
-  },
-  {
-    id: "asr-4",
-    context: "A new colleague asks about your preferred workflow.",
-    prompt:
-      '"Do you like quick check-ins, or would you rather I collect questions and send one message later?"',
-    options: [
-      {
-        id: "adaptation",
-        label: "Adaptive preference seeking",
-        relationalCue: "They are trying to match communication to your needs.",
-      },
-      {
-        id: "surveillance",
-        label: "Surveillance",
-        relationalCue: "They are monitoring your work too closely.",
-      },
-      {
-        id: "indifference",
-        label: "Indifference",
-        relationalCue: "They are disengaged from collaboration quality.",
-      },
-    ],
-    consensusOptionId: "adaptation",
-    learningSignal:
-      "Offering options and asking for preference is a cue for adaptive coordination.",
-  },
+export const BALLOON_ROUNDS: BalloonRound[] = [
+  { id: "balloon-1", burstAt: 7, maxPumps: 12, rewardPerPump: 4 },
+  { id: "balloon-2", burstAt: 10, maxPumps: 12, rewardPerPump: 4 },
+  { id: "balloon-3", burstAt: 5, maxPumps: 12, rewardPerPump: 5 },
+  { id: "balloon-4", burstAt: 11, maxPumps: 12, rewardPerPump: 4 },
+  { id: "balloon-5", burstAt: 8, maxPumps: 12, rewardPerPump: 5 },
+  { id: "balloon-6", burstAt: 6, maxPumps: 12, rewardPerPump: 6 },
 ];
 
 export const AUDITORY_TRIALS: AuditoryTrial[] = [
@@ -186,51 +79,6 @@ export const TRAIT_LABELS: Record<TraitKey, string> = {
   boundaryClarity: "Boundary clarity",
   socialLearningOrientation: "Social learning orientation",
 };
-
-export const ROLE_CONFIGS: RoleConfig[] = [
-  {
-    id: "relationship-coach",
-    label: "Relationship coach",
-    description:
-      "High-touch role emphasizing accurate cue reading, repair, and calm pacing.",
-    traitWeights: {
-      attunement: 0.22,
-      emotionalCalibration: 0.24,
-      responseFlexibility: 0.16,
-      patienceUnderAmbiguity: 0.18,
-      boundaryClarity: 0.08,
-      socialLearningOrientation: 0.12,
-    },
-  },
-  {
-    id: "community-manager",
-    label: "Community manager",
-    description:
-      "Group-facing role balancing listening, boundary setting, and adaptive response.",
-    traitWeights: {
-      attunement: 0.2,
-      emotionalCalibration: 0.16,
-      responseFlexibility: 0.18,
-      patienceUnderAmbiguity: 0.12,
-      boundaryClarity: 0.18,
-      socialLearningOrientation: 0.16,
-    },
-  },
-  {
-    id: "care-coordinator",
-    label: "Care coordinator",
-    description:
-      "Support role where sustained attention, restraint, and clear communication matter.",
-    traitWeights: {
-      attunement: 0.18,
-      emotionalCalibration: 0.18,
-      responseFlexibility: 0.14,
-      patienceUnderAmbiguity: 0.18,
-      boundaryClarity: 0.16,
-      socialLearningOrientation: 0.16,
-    },
-  },
-];
 
 export const RELATIONAL_STYLE_PROFILES = [
   {

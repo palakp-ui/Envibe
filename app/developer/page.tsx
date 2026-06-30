@@ -1,19 +1,24 @@
 import Link from "next/link";
 import { RELATIONAL_STYLE_PROFILES, TRAIT_LABELS } from "@/lib/tasks";
 import { readStore } from "@/lib/storage";
-import type { RoleConfig, ScoreReport, TraitKey } from "@/lib/types";
+import type { TraitKey } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 const traitKeys = Object.keys(TRAIT_LABELS) as TraitKey[];
 
-function weightedRoleScore(report: ScoreReport, role: RoleConfig) {
-  return Math.round(
-    report.traitScores.reduce((sum, trait) => {
-      return sum + trait.score * role.traitWeights[trait.key];
-    }, 0),
-  );
-}
+const cognitiveTraitMap = [
+  {
+    task: "Balloon Pop",
+    signal: "Risk-reward learning",
+    traits: "initiative, restraint, boundary clarity, learning after feedback",
+  },
+  {
+    task: "Auditory Screen",
+    signal: "Signal detection and response inhibition",
+    traits: "attunement, patience, response control, ambiguity tolerance",
+  },
+];
 
 export default async function DeveloperPage() {
   const store = await readStore();
@@ -26,9 +31,9 @@ export default async function DeveloperPage() {
           <span className="eyebrow">Developer dashboard</span>
           <h1>Compare relational style signals.</h1>
           <p className="lede">
-            Review completed candidates, their nearest style profiles, and
-            role-weighted trait summaries. The dashboard keeps report
-            explainability close to comparison workflows.
+            Review completed candidates, their system-assigned style profiles,
+            and the cognitive mini-game signals that drove each trait score.
+            The dashboard keeps explainability close to comparison workflows.
           </p>
           <div className="actions">
             <Link className="button primary" href="/assessment">
@@ -53,8 +58,8 @@ export default async function DeveloperPage() {
             <span>Audit events</span>
           </div>
           <div className="metric">
-            <strong>{store.roleConfigs.length}</strong>
-            <span>Role configs</span>
+            <strong>{RELATIONAL_STYLE_PROFILES.length}</strong>
+            <span>System profiles</span>
           </div>
         </div>
       </section>
@@ -72,28 +77,38 @@ export default async function DeveloperPage() {
               <thead>
                 <tr>
                   <th>Candidate</th>
-                  <th>Top style</th>
+                  <th>System-assigned profile</th>
                   <th>Fit</th>
-                  {store.roleConfigs.map((role) => (
-                    <th key={role.id}>{role.label}</th>
-                  ))}
+                  <th>Strongest trait</th>
+                  <th>Growth signal</th>
                   <th>Report</th>
                 </tr>
               </thead>
               <tbody>
-                {completedReports.map((report) => (
-                  <tr key={report.sessionId}>
-                    <td>{report.candidateName}</td>
-                    <td>{report.profileMatches[0]?.label}</td>
-                    <td>{report.profileMatches[0]?.fit}%</td>
-                    {store.roleConfigs.map((role) => (
-                      <td key={role.id}>{weightedRoleScore(report, role)}</td>
-                    ))}
-                    <td>
-                      <Link href={`/reports/${report.sessionId}`}>Open</Link>
-                    </td>
-                  </tr>
-                ))}
+                {completedReports.map((report) => {
+                  const sortedTraits = [...report.traitScores].sort(
+                    (a, b) => b.score - a.score,
+                  );
+                  const strongest = sortedTraits[0];
+                  const growth = sortedTraits[sortedTraits.length - 1];
+
+                  return (
+                    <tr key={report.sessionId}>
+                      <td>{report.candidateName}</td>
+                      <td>{report.profileMatches[0]?.label}</td>
+                      <td>{report.profileMatches[0]?.fit}%</td>
+                      <td>
+                        {strongest?.label} ({strongest?.score})
+                      </td>
+                      <td>
+                        {growth?.label} ({growth?.score})
+                      </td>
+                      <td>
+                        <Link href={`/reports/${report.sessionId}`}>Open</Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -102,41 +117,29 @@ export default async function DeveloperPage() {
 
       <section className="grid two">
         <div className="card stack">
-          <h2>Style profile library</h2>
-          {RELATIONAL_STYLE_PROFILES.map((profile) => (
-            <div className="panel stack" key={profile.id}>
-              <h3>{profile.label}</h3>
-              <p>{profile.summary}</p>
-              <div className="grid two">
-                {traitKeys.map((traitKey) => (
-                  <div key={traitKey}>
-                    <strong>{TRAIT_LABELS[traitKey]}</strong>
-                    <div className="score-bar" aria-hidden="true">
-                      <span style={{ width: `${profile.targets[traitKey]}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <h2>Cognitive task to psychological trait map</h2>
+          {cognitiveTraitMap.map((mapping) => (
+            <div className="panel stack" key={mapping.task}>
+              <h3>{mapping.task}</h3>
+              <p>
+                <strong>{mapping.signal}</strong>
+              </p>
+              <p>{mapping.traits}</p>
             </div>
           ))}
         </div>
 
         <div className="card stack">
-          <h2>Role configuration</h2>
-          {store.roleConfigs.map((role) => (
-            <div className="panel stack" key={role.id}>
-              <h3>{role.label}</h3>
-              <p>{role.description}</p>
+          <h2>System profile library</h2>
+          {RELATIONAL_STYLE_PROFILES.map((profile) => (
+            <div className="panel stack" key={profile.id}>
+              <h3>{profile.label}</h3>
+              <p>{profile.summary}</p>
               {traitKeys.map((traitKey) => (
                 <div key={traitKey}>
-                  <strong>
-                    {TRAIT_LABELS[traitKey]} -{" "}
-                    {Math.round(role.traitWeights[traitKey] * 100)}%
-                  </strong>
+                  <strong>{TRAIT_LABELS[traitKey]}</strong>
                   <div className="score-bar" aria-hidden="true">
-                    <span
-                      style={{ width: `${role.traitWeights[traitKey] * 100}%` }}
-                    />
+                    <span style={{ width: `${profile.targets[traitKey]}%` }} />
                   </div>
                 </div>
               ))}
