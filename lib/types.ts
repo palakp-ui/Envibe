@@ -1,12 +1,24 @@
 export type ISODateString = string;
 
-export type TaskId = "balloon-pop" | "auditory-screen";
+export type TaskId =
+  | "balloon-pop"
+  | "choice-dots"
+  | "trail-path"
+  | "spatial-span"
+  | "pattern-match"
+  | "design-grid"
+  | "auditory-screen";
 
 export type TelemetryEventType =
   | "session_created"
   | "task_started"
   | "balloon_pump"
   | "balloon_round_completed"
+  | "choice_trial_completed"
+  | "trail_completed"
+  | "spatial_trial_completed"
+  | "pattern_trial_completed"
+  | "design_round_completed"
   | "auditory_trial_started"
   | "auditory_response"
   | "task_completed"

@@ -8,10 +8,20 @@ flows.
 ## What is implemented
 
 - Candidate intake with optional fairness-monitoring consent.
-- Two browser-based behavioral tasks:
+- Seven browser-based, non-word behavioral mini-games:
   - **Balloon Pop**: a visual risk-reward mini-game that maps pumping,
     banking, popping, and learning-after-loss behavior to psychological trait
     signals.
+  - **Choice Dots**: a left/right reaction-time task for context-sensitive
+    speed, accuracy, and inhibition.
+  - **Trail Path**: a visual sequencing path task for planning, flexibility, and
+    error monitoring.
+  - **Spatial Span**: a non-verbal grid sequence task for visuospatial working
+    memory.
+  - **Pattern Match**: a shape/color search task for signal detection and
+    perceptual accuracy.
+  - **Design Grid**: a four-dot pattern builder for design fluency, novelty, and
+    repetition inhibition.
   - **Auditory Screen**: target-tone detection, response timing, and false-alarm
     restraint.
 - Backend telemetry capture through Next.js API routes.

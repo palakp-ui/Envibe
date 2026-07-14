@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 const traitKeys = Object.keys(TRAIT_LABELS) as TraitKey[];
 const governanceChecks = [
   "Balloon Pop should be validated for risk-reward and inhibition signals before consequential use.",
+  "Choice Dots, Trail Path, Spatial Span, Pattern Match, and Design Grid are original non-word mini-games inspired by cognitive constructs.",
+  "Trail, span, pattern, and design scores should be benchmarked against uploaded dictionary measures before any high-stakes interpretation.",
   "Auditory Screen should be interpreted with device, volume, and hearing-context limitations.",
   "Profile assignment should remain explainable, auditable, and reviewed for group-level drift.",
 ];

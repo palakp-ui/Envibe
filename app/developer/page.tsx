@@ -14,6 +14,31 @@ const cognitiveTraitMap = [
     traits: "initiative, restraint, boundary clarity, learning after feedback",
   },
   {
+    task: "Choice Dots",
+    signal: "Choice reaction time",
+    traits: "context-sensitive speed, error control, response inhibition",
+  },
+  {
+    task: "Trail Path",
+    signal: "Visual sequencing and planning",
+    traits: "response flexibility, path efficiency, error monitoring",
+  },
+  {
+    task: "Spatial Span",
+    signal: "Visuospatial working memory",
+    traits: "context retention, patience, attentional holding capacity",
+  },
+  {
+    task: "Pattern Match",
+    signal: "Visual search and discrimination",
+    traits: "attunement, careful signal detection, perceptual accuracy",
+  },
+  {
+    task: "Design Grid",
+    signal: "Design fluency",
+    traits: "novelty generation, repetition inhibition, flexible approach",
+  },
+  {
     task: "Auditory Screen",
     signal: "Signal detection and response inhibition",
     traits: "attunement, patience, response control, ambiguity tolerance",

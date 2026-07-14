@@ -10,15 +10,14 @@ const platformCapabilities = [
 
 const roadmapTasks = [
   "BAVLT",
-  "Choice Reaction Time",
   "Continuous Picture Naming",
-  "Design Fluency",
   "Digit Span",
   "Face-Name Binding",
-  "Hidden Patterns",
   "Stroop",
-  "Trail Making",
   "Verbal Fluency",
+  "Logical Memory",
+  "Figure Drawing",
+  "Mental Rotation",
 ];
 
 export default function Home() {
