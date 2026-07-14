@@ -104,6 +104,7 @@ export default async function DeveloperPage() {
                   <th>Candidate</th>
                   <th>System-assigned profile</th>
                   <th>Fit</th>
+                  <th>Top construct</th>
                   <th>Strongest trait</th>
                   <th>Growth signal</th>
                   <th>Report</th>
@@ -114,6 +115,9 @@ export default async function DeveloperPage() {
                   const sortedTraits = [...report.traitScores].sort(
                     (a, b) => b.score - a.score,
                   );
+                  const topConstruct = [...(report.constructScores || [])].sort(
+                    (a, b) => b.score - a.score,
+                  )[0];
                   const strongest = sortedTraits[0];
                   const growth = sortedTraits[sortedTraits.length - 1];
 
@@ -122,6 +126,11 @@ export default async function DeveloperPage() {
                       <td>{report.candidateName}</td>
                       <td>{report.profileMatches[0]?.label}</td>
                       <td>{report.profileMatches[0]?.fit}%</td>
+                      <td>
+                        {topConstruct
+                          ? `${topConstruct.label} (${topConstruct.score})`
+                          : "Legacy report"}
+                      </td>
                       <td>
                         {strongest?.label} ({strongest?.score})
                       </td>

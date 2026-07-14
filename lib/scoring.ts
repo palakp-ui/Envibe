@@ -11,6 +11,8 @@ import {
 } from "@/lib/tasks";
 import type {
   CandidateSession,
+  CognitiveConstructKey,
+  ConstructScore,
   ProfileMatch,
   ScoreReport,
   TaskScore,
@@ -20,6 +22,18 @@ import type {
 } from "@/lib/types";
 
 const TRAIT_KEYS = Object.keys(TRAIT_LABELS) as TraitKey[];
+const MODEL_VERSION = "open-cognitive-relational-v1";
+const CONSTRUCT_LABELS: Record<CognitiveConstructKey, string> = {
+  riskRewardLearning: "Risk-reward learning",
+  attentionControl: "Attention control",
+  processingSpeed: "Processing speed",
+  responseInhibition: "Response inhibition",
+  cognitiveFlexibility: "Cognitive flexibility",
+  workingMemory: "Working memory",
+  perceptualDiscrimination: "Perceptual discrimination",
+  generativity: "Generativity",
+  feedbackLearning: "Feedback learning",
+};
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
@@ -337,10 +351,24 @@ function metric(taskScore: TaskScore, key: string) {
   return asNumber(taskScore.metrics[key]) / 100;
 }
 
-function buildTraitScores(taskScores: TaskScore[]): TraitScore[] {
-  const taskScoreById = new Map(
-    taskScores.map((taskScore) => [taskScore.taskId, taskScore]),
-  );
+function speedScore(ms: number, targetMs: number, toleranceMs: number) {
+  return ms ? clamp(1 - Math.abs(ms - targetMs) / toleranceMs, 0, 1) : 0.45;
+}
+
+function taskMap(taskScores: TaskScore[]) {
+  return new Map(taskScores.map((taskScore) => [taskScore.taskId, taskScore]));
+}
+
+function constructEvidence(
+  explanation: string,
+  evidence: string[],
+  sourceTasks: ConstructScore["sourceTasks"],
+) {
+  return { explanation, evidence, sourceTasks };
+}
+
+function buildConstructScores(taskScores: TaskScore[]): ConstructScore[] {
+  const taskScoreById = taskMap(taskScores);
   const balloon = taskScoreById.get("balloon-pop") as TaskScore;
   const choice = taskScoreById.get("choice-dots") as TaskScore;
   const trail = taskScoreById.get("trail-path") as TaskScore;
@@ -348,13 +376,11 @@ function buildTraitScores(taskScores: TaskScore[]): TraitScore[] {
   const pattern = taskScoreById.get("pattern-match") as TaskScore;
   const design = taskScoreById.get("design-grid") as TaskScore;
   const auditory = taskScoreById.get("auditory-screen") as TaskScore;
-  const balloonCompletion = metric(balloon, "completion");
   const riskDiscipline = metric(balloon, "riskDiscipline");
   const optimalExploration = metric(balloon, "optimalExploration");
   const learningAfterPop = metric(balloon, "learningAfterPop");
   const pumpConsistency = metric(balloon, "pumpConsistency");
   const choiceAccuracy = metric(choice, "accuracy");
-  const choiceConsistency = metric(choice, "responseConsistency");
   const choiceErrorControl = 1 - metric(choice, "errorRate");
   const trailErrorControl = metric(trail, "errorControl");
   const trailSpeedBalance = metric(trail, "speedBalance");
@@ -365,71 +391,270 @@ function buildTraitScores(taskScores: TaskScore[]): TraitScore[] {
   const designRepeatControl = 1 - metric(design, "repeatRate");
   const hitRate = metric(auditory, "hitRate");
   const falseAlarmControl = 1 - metric(auditory, "falseAlarmRate");
-  const auditoryCompletion = metric(auditory, "completion");
-  const consistency = metric(auditory, "responseConsistency");
-  const rtMs = asNumber(auditory.metrics.medianHitResponseMs);
-  const speedBalance = rtMs
-    ? clamp(1 - Math.abs(rtMs - 650) / 900, 0, 1)
-    : 0.45;
-  const completion = mean([
-    balloonCompletion,
-    metric(choice, "completion"),
-    metric(trail, "completion"),
-    metric(spatial, "completion"),
-    metric(pattern, "completion"),
-    metric(design, "completion"),
-    auditoryCompletion,
-  ]);
+  const auditorySpeed = speedScore(
+    asNumber(auditory.metrics.medianHitResponseMs),
+    650,
+    900,
+  );
+  const choiceSpeed = speedScore(
+    asNumber(choice.metrics.medianResponseMs),
+    520,
+    900,
+  );
+  const patternSpeed = speedScore(
+    asNumber(pattern.metrics.medianResponseMs),
+    1800,
+    2500,
+  );
+
+  const definitions: Array<{
+    key: CognitiveConstructKey;
+    score: number;
+  } & ReturnType<typeof constructEvidence>> = [
+    {
+      key: "riskRewardLearning",
+      score: mean([riskDiscipline, optimalExploration, pumpConsistency]),
+      ...constructEvidence(
+        "Balances exploration, restraint, and consistency in uncertain reward settings.",
+        [
+          `Balloon optimal exploration: ${balloon.metrics.optimalExploration}%`,
+          `Balloon risk discipline: ${balloon.metrics.riskDiscipline}%`,
+          `Pump consistency: ${balloon.metrics.pumpConsistency}%`,
+        ],
+        ["balloon-pop"],
+      ),
+    },
+    {
+      key: "attentionControl",
+      score: mean([
+        hitRate,
+        falseAlarmControl,
+        choiceAccuracy,
+        patternAccuracy,
+        spatialAccuracy,
+      ]),
+      ...constructEvidence(
+        "Captures accurate attention to relevant visual and auditory signals.",
+        [
+          `Auditory hit rate: ${auditory.metrics.hitRate}%`,
+          `Pattern Match accuracy: ${pattern.metrics.accuracy}%`,
+          `Choice Dots accuracy: ${choice.metrics.accuracy}%`,
+          `Spatial Span accuracy: ${spatial.metrics.accuracy}%`,
+        ],
+        ["auditory-screen", "pattern-match", "choice-dots", "spatial-span"],
+      ),
+    },
+    {
+      key: "processingSpeed",
+      score: mean([auditorySpeed, choiceSpeed, patternSpeed, trailSpeedBalance]),
+      ...constructEvidence(
+        "Summarizes speed in reaction, detection, search, and path-completion tasks.",
+        [
+          `Choice median response: ${choice.metrics.medianResponseMs} ms`,
+          `Auditory median hit response: ${auditory.metrics.medianHitResponseMs} ms`,
+          `Pattern Match median response: ${pattern.metrics.medianResponseMs} ms`,
+          `Trail speed balance: ${trail.metrics.speedBalance}%`,
+        ],
+        ["choice-dots", "auditory-screen", "pattern-match", "trail-path"],
+      ),
+    },
+    {
+      key: "responseInhibition",
+      score: mean([
+        falseAlarmControl,
+        riskDiscipline,
+        choiceErrorControl,
+        designRepeatControl,
+        trailErrorControl,
+      ]),
+      ...constructEvidence(
+        "Estimates restraint, stopping control, low false alarms, and repetition inhibition.",
+        [
+          `Auditory false-alarm control: ${round(falseAlarmControl * 100)}%`,
+          `Balloon risk discipline: ${balloon.metrics.riskDiscipline}%`,
+          `Choice Dots error rate: ${choice.metrics.errorRate}%`,
+          `Design Grid repeat rate: ${design.metrics.repeatRate}%`,
+          `Trail error control: ${trail.metrics.errorControl}%`,
+        ],
+        [
+          "auditory-screen",
+          "balloon-pop",
+          "choice-dots",
+          "design-grid",
+          "trail-path",
+        ],
+      ),
+    },
+    {
+      key: "cognitiveFlexibility",
+      score: mean([
+        trailErrorControl,
+        trailSpeedBalance,
+        designUniqueRate,
+        learningAfterPop,
+      ]),
+      ...constructEvidence(
+        "Captures adaptive sequencing, novelty, and behavioral adjustment after feedback.",
+        [
+          `Trail Path error control: ${trail.metrics.errorControl}%`,
+          `Trail Path speed balance: ${trail.metrics.speedBalance}%`,
+          `Design Grid unique rate: ${design.metrics.uniqueRate}%`,
+          `Learning after pop: ${balloon.metrics.learningAfterPop}%`,
+        ],
+        ["trail-path", "design-grid", "balloon-pop"],
+      ),
+    },
+    {
+      key: "workingMemory",
+      score: mean([spatialMemory, spatialAccuracy, metric(spatial, "completion")]),
+      ...constructEvidence(
+        "Represents non-verbal sequence retention and context holding.",
+        [
+          `Spatial max correct span: ${spatial.metrics.maxCorrectSpan}`,
+          `Spatial memory span: ${spatial.metrics.memorySpan}%`,
+          `Spatial accuracy: ${spatial.metrics.accuracy}%`,
+        ],
+        ["spatial-span"],
+      ),
+    },
+    {
+      key: "perceptualDiscrimination",
+      score: mean([patternAccuracy, choiceAccuracy, hitRate]),
+      ...constructEvidence(
+        "Captures perceptual signal discrimination across visual and auditory targets.",
+        [
+          `Pattern Match accuracy: ${pattern.metrics.accuracy}%`,
+          `Choice Dots accuracy: ${choice.metrics.accuracy}%`,
+          `Auditory hit rate: ${auditory.metrics.hitRate}%`,
+        ],
+        ["pattern-match", "choice-dots", "auditory-screen"],
+      ),
+    },
+    {
+      key: "generativity",
+      score: mean([designUniqueRate, designRepeatControl, metric(design, "completion")]),
+      ...constructEvidence(
+        "Captures production of novel non-verbal designs while avoiding repetition.",
+        [
+          `Design Grid unique rate: ${design.metrics.uniqueRate}%`,
+          `Design Grid repeat rate: ${design.metrics.repeatRate}%`,
+          `Design completion: ${design.metrics.completion}%`,
+        ],
+        ["design-grid"],
+      ),
+    },
+    {
+      key: "feedbackLearning",
+      score: mean([learningAfterPop, optimalExploration, trailSpeedBalance]),
+      ...constructEvidence(
+        "Estimates adjustment after outcome feedback and efficient adaptation across tasks.",
+        [
+          `Balloon learning after pop: ${balloon.metrics.learningAfterPop}%`,
+          `Balloon optimal exploration: ${balloon.metrics.optimalExploration}%`,
+          `Trail speed balance: ${trail.metrics.speedBalance}%`,
+        ],
+        ["balloon-pop", "trail-path"],
+      ),
+    },
+  ];
+
+  return definitions.map((definition) => ({
+    key: definition.key,
+    label: CONSTRUCT_LABELS[definition.key],
+    score: round(clamp(definition.score * 100)),
+    explanation: definition.explanation,
+    evidence: definition.evidence,
+    sourceTasks: definition.sourceTasks,
+  }));
+}
+
+function constructMetric(
+  constructScores: ConstructScore[],
+  key: CognitiveConstructKey,
+) {
+  return (
+    constructScores.find((constructScore) => constructScore.key === key)
+      ?.score || 0
+  ) / 100;
+}
+
+function buildTraitScores(
+  taskScores: TaskScore[],
+  constructScores: ConstructScore[],
+): TraitScore[] {
+  const taskScoreById = taskMap(taskScores);
+  const balloon = taskScoreById.get("balloon-pop") as TaskScore;
+  const choice = taskScoreById.get("choice-dots") as TaskScore;
+  const trail = taskScoreById.get("trail-path") as TaskScore;
+  const spatial = taskScoreById.get("spatial-span") as TaskScore;
+  const pattern = taskScoreById.get("pattern-match") as TaskScore;
+  const design = taskScoreById.get("design-grid") as TaskScore;
+  const auditory = taskScoreById.get("auditory-screen") as TaskScore;
+  const riskRewardLearning = constructMetric(
+    constructScores,
+    "riskRewardLearning",
+  );
+  const attentionControl = constructMetric(constructScores, "attentionControl");
+  const processingSpeed = constructMetric(constructScores, "processingSpeed");
+  const responseInhibition = constructMetric(
+    constructScores,
+    "responseInhibition",
+  );
+  const cognitiveFlexibility = constructMetric(
+    constructScores,
+    "cognitiveFlexibility",
+  );
+  const workingMemory = constructMetric(constructScores, "workingMemory");
+  const perceptualDiscrimination = constructMetric(
+    constructScores,
+    "perceptualDiscrimination",
+  );
+  const generativity = constructMetric(constructScores, "generativity");
+  const feedbackLearning = constructMetric(constructScores, "feedbackLearning");
 
   const rawScores: Record<TraitKey, number> = {
     attunement:
       100 *
-      (0.24 * hitRate +
-        0.18 * falseAlarmControl +
-        0.22 * patternAccuracy +
-        0.14 * choiceAccuracy +
-        0.12 * spatialAccuracy +
-        0.1 * consistency),
+      (0.34 * attentionControl +
+        0.24 * perceptualDiscrimination +
+        0.16 * workingMemory +
+        0.14 * responseInhibition +
+        0.12 * processingSpeed),
     emotionalCalibration:
       100 *
-      (0.24 * riskDiscipline +
-        0.2 * optimalExploration +
-        0.16 * pumpConsistency +
-        0.16 * choiceErrorControl +
-        0.14 * falseAlarmControl +
-        0.1 * trailErrorControl),
+      (0.3 * riskRewardLearning +
+        0.24 * responseInhibition +
+        0.18 * attentionControl +
+        0.16 * feedbackLearning +
+        0.12 * workingMemory),
     responseFlexibility:
       100 *
-      (0.2 * speedBalance +
-        0.18 * trailSpeedBalance +
-        0.18 * trailErrorControl +
-        0.18 * designUniqueRate +
-        0.14 * learningAfterPop +
-        0.12 * completion),
+      (0.34 * cognitiveFlexibility +
+        0.22 * generativity +
+        0.18 * feedbackLearning +
+        0.14 * processingSpeed +
+        0.12 * workingMemory),
     patienceUnderAmbiguity:
       100 *
-      (0.24 * falseAlarmControl +
-        0.2 * riskDiscipline +
-        0.16 * choiceConsistency +
-        0.14 * consistency +
-        0.14 * spatialMemory +
-        0.12 * completion),
+      (0.3 * responseInhibition +
+        0.2 * workingMemory +
+        0.18 * attentionControl +
+        0.18 * riskRewardLearning +
+        0.14 * feedbackLearning),
     boundaryClarity:
       100 *
-      (0.22 * falseAlarmControl +
-        0.2 * riskDiscipline +
-        0.16 * designRepeatControl +
-        0.16 * trailErrorControl +
-        0.14 * choiceErrorControl +
-        0.12 * pumpConsistency),
+      (0.34 * responseInhibition +
+        0.22 * riskRewardLearning +
+        0.16 * cognitiveFlexibility +
+        0.16 * attentionControl +
+        0.12 * generativity),
     socialLearningOrientation:
       100 *
-      (0.22 * completion +
-        0.2 * learningAfterPop +
-        0.18 * spatialMemory +
-        0.16 * designUniqueRate +
-        0.14 * trailSpeedBalance +
-        0.1 * optimalExploration),
+      (0.3 * feedbackLearning +
+        0.2 * cognitiveFlexibility +
+        0.18 * workingMemory +
+        0.16 * generativity +
+        0.16 * attentionControl),
   };
 
   return TRAIT_KEYS.map((key) => ({
@@ -565,7 +790,8 @@ export function computeScoreReport(
     scoreDesignGrid(sessionEvents),
     scoreAuditoryScreen(sessionEvents),
   ];
-  const traitScores = buildTraitScores(taskScores);
+  const constructScores = buildConstructScores(taskScores);
+  const traitScores = buildTraitScores(taskScores, constructScores);
   const profileMatches = matchProfiles(traitScores);
   const topMatch = profileMatches[0];
 
@@ -573,7 +799,9 @@ export function computeScoreReport(
     sessionId: session.id,
     candidateName: session.candidateName,
     generatedAt: new Date().toISOString(),
+    modelVersion: MODEL_VERSION,
     taskScores,
+    constructScores,
     traitScores,
     profileMatches,
     overallNarrative: `${session.candidateName} was assigned by the scoring system to the ${topMatch.label} style as the closest current match (${topMatch.fit}% fit). This MVP report is descriptive and should be interpreted alongside interviews, consented context, and other relationship-relevant evidence.`,
@@ -583,6 +811,7 @@ export function computeScoreReport(
       "Auditory results can be affected by device volume, hearing context, and browser audio settings.",
       "Balloon Pop reflects risk-reward behavior in a mini-game and should not be overgeneralized without validation.",
       "The added non-word mini-games are original browser tasks inspired by cognitive constructs, not clinical neuropsychological instruments.",
+      "This model is designed to be Pymetrics-like in architecture only; it does not copy proprietary Pymetrics games, scoring weights, traits, or outputs.",
     ],
   };
 }

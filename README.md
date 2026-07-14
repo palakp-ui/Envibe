@@ -68,6 +68,9 @@ npm run build
 - **Neuropsych data inventory** in `docs/neuropsych-data-inventory.md` maps the
   uploaded data dictionaries to future mini-games, validation measures, and
   relational-style trait hypotheses.
+- **Open cognitive model** in `docs/open-cognitive-model.md` documents the
+  non-proprietary Pymetrics-like architecture from mini-game telemetry to
+  constructs, traits, and profile matches.
 
 ## Interpretation guardrails
 

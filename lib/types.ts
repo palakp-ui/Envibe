@@ -58,12 +58,32 @@ export type TraitKey =
   | "boundaryClarity"
   | "socialLearningOrientation";
 
+export type CognitiveConstructKey =
+  | "riskRewardLearning"
+  | "attentionControl"
+  | "processingSpeed"
+  | "responseInhibition"
+  | "cognitiveFlexibility"
+  | "workingMemory"
+  | "perceptualDiscrimination"
+  | "generativity"
+  | "feedbackLearning";
+
 export type TraitScore = {
   key: TraitKey;
   label: string;
   score: number;
   explanation: string;
   evidence: string[];
+};
+
+export type ConstructScore = {
+  key: CognitiveConstructKey;
+  label: string;
+  score: number;
+  explanation: string;
+  evidence: string[];
+  sourceTasks: TaskId[];
 };
 
 export type TaskScore = {
@@ -85,7 +105,9 @@ export type ScoreReport = {
   sessionId: string;
   candidateName: string;
   generatedAt: ISODateString;
+  modelVersion: string;
   taskScores: TaskScore[];
+  constructScores: ConstructScore[];
   traitScores: TraitScore[];
   profileMatches: ProfileMatch[];
   overallNarrative: string;
