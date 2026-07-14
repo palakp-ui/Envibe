@@ -55,6 +55,9 @@ npm run build
 - **Scoring module** maps task metrics to relational traits using transparent
   weighted formulas.
 - **Storage module** writes an auditable JSON store suitable for MVP demos.
+- **Neuropsych data inventory** in `docs/neuropsych-data-inventory.md` maps the
+  uploaded data dictionaries to future mini-games, validation measures, and
+  relational-style trait hypotheses.
 
 ## Interpretation guardrails
 
