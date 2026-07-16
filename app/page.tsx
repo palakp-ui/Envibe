@@ -9,15 +9,14 @@ const platformCapabilities = [
 ];
 
 const roadmapTasks = [
-  "BAVLT",
-  "Continuous Picture Naming",
-  "Digit Span",
-  "Face-Name Binding",
-  "Stroop",
-  "Verbal Fluency",
-  "Logical Memory",
+  "Simple Reaction Time",
+  "Finger Tapping",
+  "Hidden Patterns",
+  "Identical Pictures",
   "Figure Drawing",
   "Mental Rotation",
+  "Symbol-Number",
+  "Visual Screen",
 ];
 
 export default function Home() {
@@ -69,8 +68,8 @@ export default function Home() {
         <div className="card stack">
           <h2>Assessment roadmap</h2>
           <p>
-            The scoring pipeline is designed to accept additional task modules
-            from the supplied battery as the product matures.
+            The scoring pipeline is designed to accept additional non-word task
+            modules from the supplied battery as the product matures.
           </p>
           <div className="grid two">
             {roadmapTasks.map((task) => (

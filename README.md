@@ -16,7 +16,7 @@ flows.
     speed, accuracy, and inhibition.
   - **Trail Path**: a visual sequencing path task for planning, flexibility, and
     error monitoring.
-  - **Spatial Span**: a non-verbal grid sequence task for visuospatial working
+  - **Spatial Span**: a visual grid sequence task for visuospatial working
     memory.
   - **Pattern Match**: a shape/color search task for signal detection and
     perceptual accuracy.
@@ -88,6 +88,6 @@ uploaded data.
 
 The report is descriptive and should not be treated as a clinical diagnosis, a
 standalone hiring recommendation, or a deterministic measure of relationship
-quality. Device setup, language context, browser audio behavior, and task
+quality. Device setup, browser audio behavior, pointer/touch behavior, and task
 completion quality can influence scores. Fairness monitoring is aggregate-only
 and requires stronger governance before consequential deployment.

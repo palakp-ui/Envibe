@@ -65,9 +65,9 @@ It computes nine open cognitive constructs:
 | Processing speed | Efficient response timing across simple tasks |
 | Response inhibition | Avoiding false alarms, overextension, and repeated behavior |
 | Cognitive flexibility | Sequencing, novelty, and adaptation after feedback |
-| Working memory | Holding non-verbal context across short sequences |
+| Working memory | Holding visual context across short sequences |
 | Perceptual discrimination | Detecting target patterns among distractors |
-| Generativity | Producing new non-verbal designs |
+| Generativity | Producing new visual designs |
 | Feedback learning | Adjusting behavior after outcomes |
 
 ## Trait layer

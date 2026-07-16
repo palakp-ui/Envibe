@@ -21,7 +21,6 @@ the bundle as synthetic and non-diagnostic.
    - Hidden Patterns
    - Identical Pictures
    - Design Fluency
-   - Digit Span as an optional working-memory proxy
 4. Converts each selected measure to a within-dataset percentile score.
    - Higher-is-better measures score higher at higher percentiles.
    - Lower-is-better measures, such as reaction time or error count, are
@@ -76,7 +75,7 @@ The reverse-engineering script scores these constructs:
 | Processing speed | CRT, SRT, Auditory Screen, Trail Making |
 | Response inhibition | CRT errors/misses, Trail errors, Design Fluency repeats |
 | Cognitive flexibility | Trail Making path efficiency, Design Fluency uniqueness |
-| Working memory | Spatial Span, optional Digit Span proxy |
+| Working memory | Spatial Span |
 | Perceptual discrimination | Hidden Patterns, Identical Pictures |
 | Generativity | Design Fluency legal/unique pattern production |
 | Feedback learning | Design Fluency, Trail B, Spatial Span proxies |

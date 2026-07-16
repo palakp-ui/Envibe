@@ -27,7 +27,6 @@ export type TelemetryEventType =
 export type CandidateDemographics = {
   consentToFairnessMonitoring: boolean;
   ageBand?: "18-24" | "25-34" | "35-44" | "45-54" | "55+" | "prefer-not";
-  language?: string;
   hearingContext?: "quiet" | "shared-space" | "headphones" | "unknown";
 };
 
@@ -138,7 +137,7 @@ export type FairnessGroupMetric = {
 
 export type FairnessOverview = {
   eligibleSessions: number;
-  monitoredAttribute: "ageBand" | "language" | "hearingContext";
+  monitoredAttribute: "ageBand" | "hearingContext";
   groups: FairnessGroupMetric[];
   largestObservedGap: number;
   notes: string[];

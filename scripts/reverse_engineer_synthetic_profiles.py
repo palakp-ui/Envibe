@@ -134,8 +134,6 @@ MEASURE_SPECS = [
     # Working memory.
     MeasureSpec("workingMemory", "shared_SS_", "SS", "max_corr", "Spatial Span max correct"),
     MeasureSpec("workingMemory", "shared_SS_", "SS", "adj_MS", "Spatial Span adjusted mean span"),
-    MeasureSpec("workingMemory", "shared_DigSpan_", "DSR", "max_corr", "Digit Span Reverse max correct", weight=0.6),
-    MeasureSpec("workingMemory", "shared_DigSpan_", "DSF", "max_corr", "Digit Span Forward max correct", weight=0.4),
     # Perceptual discrimination.
     MeasureSpec("perceptualDiscrimination", "shared_HP_", "HP", "hit_ct", "Hidden Patterns hits"),
     MeasureSpec("perceptualDiscrimination", "shared_HP_", "HP", "inc_ct", "Hidden Patterns incorrect count", "low"),

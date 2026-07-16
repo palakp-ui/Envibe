@@ -508,7 +508,7 @@ function buildConstructScores(taskScores: TaskScore[]): ConstructScore[] {
       key: "workingMemory",
       score: mean([spatialMemory, spatialAccuracy, metric(spatial, "completion")]),
       ...constructEvidence(
-        "Represents non-verbal sequence retention and context holding.",
+        "Represents visual sequence retention and context holding.",
         [
           `Spatial max correct span: ${spatial.metrics.maxCorrectSpan}`,
           `Spatial memory span: ${spatial.metrics.memorySpan}%`,
@@ -534,7 +534,7 @@ function buildConstructScores(taskScores: TaskScore[]): ConstructScore[] {
       key: "generativity",
       score: mean([designUniqueRate, designRepeatControl, metric(design, "completion")]),
       ...constructEvidence(
-        "Captures production of novel non-verbal designs while avoiding repetition.",
+        "Captures production of novel visual designs while avoiding repetition.",
         [
           `Design Grid unique rate: ${design.metrics.uniqueRate}%`,
           `Design Grid repeat rate: ${design.metrics.repeatRate}%`,

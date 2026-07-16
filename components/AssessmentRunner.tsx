@@ -149,7 +149,6 @@ export function AssessmentRunner() {
   const [demographics, setDemographics] = useState<CandidateDemographics>({
     consentToFairnessMonitoring: false,
     ageBand: "prefer-not",
-    language: "English",
     hearingContext: "unknown",
   });
   const [error, setError] = useState("");
@@ -901,18 +900,6 @@ export function AssessmentRunner() {
               </select>
             </label>
           </div>
-          <label>
-            Primary language
-            <input
-              value={demographics.language}
-              onChange={(event) =>
-                setDemographics((value) => ({
-                  ...value,
-                  language: event.target.value,
-                }))
-              }
-            />
-          </label>
           <label>
             <span>
               <input

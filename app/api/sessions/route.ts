@@ -21,7 +21,6 @@ export async function POST(request: Request) {
       consentToFairnessMonitoring:
         body.demographics?.consentToFairnessMonitoring === true,
       ageBand: body.demographics?.ageBand,
-      language: body.demographics?.language || "not-provided",
       hearingContext: body.demographics?.hearingContext || "unknown",
     },
   });
