@@ -1,11 +1,24 @@
 export type ISODateString = string;
 
-export type TaskId = "asr-calibration" | "auditory-screen";
+export type TaskId =
+  | "balloon-pop"
+  | "choice-dots"
+  | "trail-path"
+  | "spatial-span"
+  | "pattern-match"
+  | "design-grid"
+  | "auditory-screen";
 
 export type TelemetryEventType =
   | "session_created"
   | "task_started"
-  | "asr_response"
+  | "balloon_pump"
+  | "balloon_round_completed"
+  | "choice_trial_completed"
+  | "trail_completed"
+  | "spatial_trial_completed"
+  | "pattern_trial_completed"
+  | "design_round_completed"
   | "auditory_trial_started"
   | "auditory_response"
   | "task_completed"
@@ -14,14 +27,12 @@ export type TelemetryEventType =
 export type CandidateDemographics = {
   consentToFairnessMonitoring: boolean;
   ageBand?: "18-24" | "25-34" | "35-44" | "45-54" | "55+" | "prefer-not";
-  language?: string;
   hearingContext?: "quiet" | "shared-space" | "headphones" | "unknown";
 };
 
 export type CandidateSession = {
   id: string;
   candidateName: string;
-  targetRoleId: string;
   status: "in-progress" | "completed";
   createdAt: ISODateString;
   completedAt?: ISODateString;
@@ -46,12 +57,32 @@ export type TraitKey =
   | "boundaryClarity"
   | "socialLearningOrientation";
 
+export type CognitiveConstructKey =
+  | "riskRewardLearning"
+  | "attentionControl"
+  | "processingSpeed"
+  | "responseInhibition"
+  | "cognitiveFlexibility"
+  | "workingMemory"
+  | "perceptualDiscrimination"
+  | "generativity"
+  | "feedbackLearning";
+
 export type TraitScore = {
   key: TraitKey;
   label: string;
   score: number;
   explanation: string;
   evidence: string[];
+};
+
+export type ConstructScore = {
+  key: CognitiveConstructKey;
+  label: string;
+  score: number;
+  explanation: string;
+  evidence: string[];
+  sourceTasks: TaskId[];
 };
 
 export type TaskScore = {
@@ -73,7 +104,9 @@ export type ScoreReport = {
   sessionId: string;
   candidateName: string;
   generatedAt: ISODateString;
+  modelVersion: string;
   taskScores: TaskScore[];
+  constructScores: ConstructScore[];
   traitScores: TraitScore[];
   profileMatches: ProfileMatch[];
   overallNarrative: string;
@@ -89,19 +122,11 @@ export type AuditLogEntry = {
   metadata: Record<string, unknown>;
 };
 
-export type RoleConfig = {
-  id: string;
-  label: string;
-  description: string;
-  traitWeights: Record<TraitKey, number>;
-};
-
 export type DataStore = {
   sessions: CandidateSession[];
   telemetry: TelemetryEvent[];
   reports: ScoreReport[];
   auditLog: AuditLogEntry[];
-  roleConfigs: RoleConfig[];
 };
 
 export type FairnessGroupMetric = {
@@ -112,7 +137,7 @@ export type FairnessGroupMetric = {
 
 export type FairnessOverview = {
   eligibleSessions: number;
-  monitoredAttribute: "ageBand" | "language" | "hearingContext";
+  monitoredAttribute: "ageBand" | "hearingContext";
   groups: FairnessGroupMetric[];
   largestObservedGap: number;
   notes: string[];

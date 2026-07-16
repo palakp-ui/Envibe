@@ -4,21 +4,19 @@ import { TASKS } from "@/lib/tasks";
 const platformCapabilities = [
   "Browser-based behavioral tasks with millisecond interaction telemetry.",
   "Server-side scoring pipeline with traceable trait formulas and profile matching.",
-  "Developer dashboard for comparing completed candidates against relational style profiles.",
-  "Audit log, role configuration, fairness monitoring hooks, and explainable reports.",
+  "Developer dashboard for reviewing system-assigned relational style profiles.",
+  "Audit log, fairness monitoring hooks, cognitive trait mapping, and explainable reports.",
 ];
 
 const roadmapTasks = [
-  "BAVLT",
-  "Choice Reaction Time",
-  "Continuous Picture Naming",
-  "Design Fluency",
-  "Digit Span",
-  "Face-Name Binding",
+  "Simple Reaction Time",
+  "Finger Tapping",
   "Hidden Patterns",
-  "Stroop",
-  "Trail Making",
-  "Verbal Fluency",
+  "Identical Pictures",
+  "Figure Drawing",
+  "Mental Rotation",
+  "Symbol-Number",
+  "Visual Screen",
 ];
 
 export default function Home() {
@@ -30,7 +28,7 @@ export default function Home() {
           <h1>Behavioral signals for relationship science.</h1>
           <p className="lede">
             Envibe is an original Pymetrics-like platform concept that uses
-            short cognitive-science-inspired tasks to build explainable,
+            short cognitive-testing mini-games to build explainable,
             auditable profiles of interpersonal tendencies. It does not copy
             proprietary games or scoring systems.
           </p>
@@ -70,8 +68,8 @@ export default function Home() {
         <div className="card stack">
           <h2>Assessment roadmap</h2>
           <p>
-            The scoring pipeline is designed to accept additional task modules
-            from the supplied battery as the product matures.
+            The scoring pipeline is designed to accept additional non-word task
+            modules from the supplied battery as the product matures.
           </p>
           <div className="grid two">
             {roadmapTasks.map((task) => (

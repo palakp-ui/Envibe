@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ASR_TRIALS,
   AUDITORY_TRIALS,
-  ROLE_CONFIGS,
+  BALLOON_ROUNDS,
+  CHOICE_DOT_TRIALS,
+  DESIGN_GRID_ROUNDS,
+  PATTERN_MATCH_TRIALS,
+  SPATIAL_SPAN_TRIALS,
   TASKS,
+  TRAIL_NODES,
 } from "@/lib/tasks";
 import type {
   CandidateDemographics,
@@ -16,9 +20,57 @@ import type {
   TelemetryEventType,
 } from "@/lib/types";
 
-type Stage = "intake" | "asr" | "auditory" | "report";
+type Stage =
+  | "intake"
+  | "balloon"
+  | "choice"
+  | "trail"
+  | "spatial"
+  | "pattern"
+  | "design"
+  | "auditory"
+  | "report";
+
+type Tile = {
+  shape: "circle" | "square" | "diamond";
+  color: string;
+};
 
 type TelemetryPayload = Record<string, unknown>;
+
+const FLOW: Array<Exclude<Stage, "intake" | "report">> = [
+  "balloon",
+  "choice",
+  "trail",
+  "spatial",
+  "pattern",
+  "design",
+  "auditory",
+];
+
+const TASK_LABEL_BY_STAGE: Record<Exclude<Stage, "intake" | "report">, string> =
+  {
+    balloon: "Balloon Pop",
+    choice: "Choice Dots",
+    trail: "Trail Path",
+    spatial: "Spatial Span",
+    pattern: "Pattern Match",
+    design: "Design Grid",
+    auditory: "Auditory Screen",
+  };
+
+const TASK_ID_BY_STAGE: Record<
+  Exclude<Stage, "intake" | "report">,
+  TaskId
+> = {
+  balloon: "balloon-pop",
+  choice: "choice-dots",
+  trail: "trail-path",
+  spatial: "spatial-span",
+  pattern: "pattern-match",
+  design: "design-grid",
+  auditory: "auditory-screen",
+};
 
 async function postJson<T>(url: string, body: Record<string, unknown>) {
   const response = await fetch(url, {
@@ -63,23 +115,54 @@ function playTone(frequencyHz: number) {
   oscillator.addEventListener("ended", () => void context.close());
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function taskLabel(taskId: TaskId) {
+  return TASKS.find((task) => task.id === taskId)?.label || taskId;
+}
+
+function renderPatternTile(tile: Tile, size = 54) {
+  const transform =
+    tile.shape === "diamond" ? "rotate(45deg)" : "rotate(0deg)";
+
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        background: tile.color,
+        borderRadius: tile.shape === "circle" ? "999px" : "12px",
+        display: "inline-block",
+        height: size,
+        transform,
+        width: size,
+      }}
+    />
+  );
+}
+
 export function AssessmentRunner() {
   const [stage, setStage] = useState<Stage>("intake");
   const [session, setSession] = useState<CandidateSession | null>(null);
   const [candidateName, setCandidateName] = useState("");
-  const [targetRoleId, setTargetRoleId] = useState(ROLE_CONFIGS[0].id);
   const [demographics, setDemographics] = useState<CandidateDemographics>({
     consentToFairnessMonitoring: false,
     ageBand: "prefer-not",
-    language: "English",
     hearingContext: "unknown",
   });
   const [error, setError] = useState("");
   const [isBusy, setIsBusy] = useState(false);
-  const [asrIndex, setAsrIndex] = useState(0);
-  const [asrChoice, setAsrChoice] = useState("");
-  const [confidence, setConfidence] = useState(60);
-  const [asrFeedback, setAsrFeedback] = useState("");
+  const [balloonIndex, setBalloonIndex] = useState(0);
+  const [balloonPumps, setBalloonPumps] = useState(0);
+  const [balloonPoints, setBalloonPoints] = useState(0);
+  const [totalBankedPoints, setTotalBankedPoints] = useState(0);
+  const [balloonState, setBalloonState] = useState<
+    "active" | "banked" | "burst"
+  >("active");
+  const [balloonMessage, setBalloonMessage] = useState(
+    "Pump to grow the balloon, then bank before it pops.",
+  );
   const [trialStartedAt, setTrialStartedAt] = useState<number>(() =>
     performance.now(),
   );
@@ -90,29 +173,65 @@ export function AssessmentRunner() {
   const [auditoryMessage, setAuditoryMessage] = useState(
     "Start each trial, then press only when you hear the tone.",
   );
+  const [choiceIndex, setChoiceIndex] = useState(0);
+  const [choiceState, setChoiceState] = useState<
+    "idle" | "waiting" | "visible" | "responded"
+  >("idle");
+  const [choiceSide, setChoiceSide] = useState<"left" | "right" | null>(null);
+  const [choiceMessage, setChoiceMessage] = useState(
+    "Start the trial, then tap the side where the dot appears.",
+  );
+  const [trailNextTarget, setTrailNextTarget] = useState(1);
+  const [trailErrors, setTrailErrors] = useState(0);
+  const [trailState, setTrailState] = useState<"active" | "complete">("active");
+  const [spatialIndex, setSpatialIndex] = useState(0);
+  const [spatialPhase, setSpatialPhase] = useState<
+    "ready" | "showing" | "input" | "feedback"
+  >("ready");
+  const [spatialActiveCell, setSpatialActiveCell] = useState<number | null>(null);
+  const [spatialInput, setSpatialInput] = useState<number[]>([]);
+  const [spatialMessage, setSpatialMessage] = useState(
+    "Watch the highlighted squares, then repeat the pattern.",
+  );
+  const [patternIndex, setPatternIndex] = useState(0);
+  const [patternState, setPatternState] = useState<"active" | "feedback">(
+    "active",
+  );
+  const [patternMessage, setPatternMessage] = useState(
+    "Find the tile that matches the target.",
+  );
+  const [designRound, setDesignRound] = useState(0);
+  const [designCells, setDesignCells] = useState<number[]>([]);
+  const [designPatterns, setDesignPatterns] = useState<string[]>([]);
+  const [designSaved, setDesignSaved] = useState(false);
+  const [designMessage, setDesignMessage] = useState(
+    "Choose four dots to make a new pattern.",
+  );
   const [report, setReport] = useState<ScoreReport | null>(null);
   const signalStartedAt = useRef<number | null>(null);
   const respondedRef = useRef(false);
   const timeoutRef = useRef<number | null>(null);
   const toneRef = useRef<number | null>(null);
+  const choiceTimeoutRef = useRef<number | null>(null);
+  const stimulusStartedAt = useRef<number | null>(null);
 
-  const currentAsrTrial = ASR_TRIALS[asrIndex];
+  const currentBalloonRound = BALLOON_ROUNDS[balloonIndex];
   const currentAuditoryTrial = AUDITORY_TRIALS[auditoryIndex];
+  const currentChoiceTrial = CHOICE_DOT_TRIALS[choiceIndex];
+  const currentSpatialTrial = SPATIAL_SPAN_TRIALS[spatialIndex];
+  const currentPatternTrial = PATTERN_MATCH_TRIALS[patternIndex];
   const progress = useMemo(() => {
-    if (stage === "asr") {
-      return (asrIndex / ASR_TRIALS.length) * 50;
-    }
-
-    if (stage === "auditory") {
-      return 50 + (auditoryIndex / AUDITORY_TRIALS.length) * 50;
-    }
-
     if (stage === "report") {
       return 100;
     }
 
-    return 0;
-  }, [asrIndex, auditoryIndex, stage]);
+    if (stage === "intake") {
+      return 0;
+    }
+
+    const stageIndex = FLOW.indexOf(stage);
+    return ((stageIndex + 0.2) / FLOW.length) * 100;
+  }, [stage]);
 
   useEffect(() => {
     return () => {
@@ -122,6 +241,10 @@ export function AssessmentRunner() {
 
       if (toneRef.current) {
         window.clearTimeout(toneRef.current);
+      }
+
+      if (choiceTimeoutRef.current) {
+        window.clearTimeout(choiceTimeoutRef.current);
       }
     };
   }, []);
@@ -144,6 +267,16 @@ export function AssessmentRunner() {
     });
   }
 
+  async function startTask(nextStage: Exclude<Stage, "intake" | "report">) {
+    await recordTelemetry(
+      "task_started",
+      { taskLabel: TASK_LABEL_BY_STAGE[nextStage] },
+      TASK_ID_BY_STAGE[nextStage],
+    );
+    setTrialStartedAt(performance.now());
+    setStage(nextStage);
+  }
+
   async function startSession() {
     setError("");
     setIsBusy(true);
@@ -153,21 +286,20 @@ export function AssessmentRunner() {
         "/api/sessions",
         {
           candidateName,
-          targetRoleId,
           demographics,
         },
       );
 
       setSession(response.session);
-      setStage("asr");
-      setTrialStartedAt(performance.now());
       await postJson("/api/telemetry", {
         sessionId: response.session.id,
-        taskId: "asr-calibration",
+        taskId: "balloon-pop",
         eventType: "task_started",
         clientTime: new Date().toISOString(),
-        payload: { taskLabel: "ASR Calibration" },
+        payload: { taskLabel: "Balloon Pop" },
       });
+      setStage("balloon");
+      setTrialStartedAt(performance.now());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not start.");
     } finally {
@@ -175,61 +307,410 @@ export function AssessmentRunner() {
     }
   }
 
-  async function submitAsrResponse() {
-    if (!currentAsrTrial || !asrChoice) {
+  async function pumpBalloon() {
+    if (!currentBalloonRound || balloonState !== "active") {
       return;
     }
 
-    const correct = asrChoice === currentAsrTrial.consensusOptionId;
+    setError("");
+    const nextPumpCount = balloonPumps + 1;
     const responseMs = Math.round(performance.now() - trialStartedAt);
 
-    setIsBusy(true);
+    try {
+      await recordTelemetry(
+        "balloon_pump",
+        {
+          roundId: currentBalloonRound.id,
+          pumpNumber: nextPumpCount,
+          maxPumps: currentBalloonRound.maxPumps,
+          responseMs,
+        },
+        "balloon-pop",
+      );
+
+      if (nextPumpCount >= currentBalloonRound.burstAt) {
+        setBalloonState("burst");
+        setBalloonMessage("Pop. This round earned 0 points.");
+        setBalloonPumps(nextPumpCount);
+        setBalloonPoints(0);
+        await recordTelemetry(
+          "balloon_round_completed",
+          {
+            roundId: currentBalloonRound.id,
+            outcome: "burst",
+            pumps: nextPumpCount,
+            maxPumps: currentBalloonRound.maxPumps,
+            bankedPoints: 0,
+            responseMs,
+          },
+          "balloon-pop",
+        );
+        return;
+      }
+
+      setBalloonPumps(nextPumpCount);
+      setBalloonPoints(nextPumpCount * currentBalloonRound.rewardPerPump);
+      setBalloonMessage("The balloon grew. Bank now or try another pump.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not save pump.",
+      );
+    }
+  }
+
+  async function bankBalloon() {
+    if (!currentBalloonRound || balloonState !== "active") {
+      return;
+    }
+
+    const responseMs = Math.round(performance.now() - trialStartedAt);
+    const bankedPoints = balloonPumps * currentBalloonRound.rewardPerPump;
+
     setError("");
 
     try {
       await recordTelemetry(
-        "asr_response",
+        "balloon_round_completed",
         {
-          trialId: currentAsrTrial.id,
-          selectedOptionId: asrChoice,
-          correct,
-          confidence,
+          roundId: currentBalloonRound.id,
+          outcome: "banked",
+          pumps: balloonPumps,
+          maxPumps: currentBalloonRound.maxPumps,
+          bankedPoints,
           responseMs,
         },
-        "asr-calibration",
+        "balloon-pop",
       );
-      setAsrFeedback(currentAsrTrial.learningSignal);
+      setBalloonState("banked");
+      setTotalBankedPoints((value) => value + bankedPoints);
+      setBalloonMessage(`Banked ${bankedPoints} points for this round.`);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not save response.",
+        caught instanceof Error ? caught.message : "Could not bank points.",
       );
-    } finally {
-      setIsBusy(false);
     }
   }
 
-  async function continueAsr() {
-    setAsrChoice("");
-    setConfidence(60);
-    setAsrFeedback("");
+  async function continueBalloon() {
+    setBalloonPumps(0);
+    setBalloonPoints(0);
+    setBalloonState("active");
+    setBalloonMessage("Pump to grow the balloon, then bank before it pops.");
 
-    if (asrIndex < ASR_TRIALS.length - 1) {
-      setAsrIndex((value) => value + 1);
+    if (balloonIndex < BALLOON_ROUNDS.length - 1) {
+      setBalloonIndex((value) => value + 1);
       setTrialStartedAt(performance.now());
       return;
     }
 
     await recordTelemetry(
       "task_completed",
-      { completedTrials: ASR_TRIALS.length },
-      "asr-calibration",
+      { completedRounds: BALLOON_ROUNDS.length, totalBankedPoints },
+      "balloon-pop",
     );
     await recordTelemetry(
       "task_started",
-      { taskLabel: "Auditory Screen" },
-      "auditory-screen",
+      { taskLabel: "Choice Dots" },
+      "choice-dots",
     );
-    setStage("auditory");
+    setStage("choice");
+    setTrialStartedAt(performance.now());
+  }
+
+  function clearChoiceTimer() {
+    if (choiceTimeoutRef.current) {
+      window.clearTimeout(choiceTimeoutRef.current);
+      choiceTimeoutRef.current = null;
+    }
+  }
+
+  async function startChoiceTrial() {
+    if (!currentChoiceTrial) {
+      return;
+    }
+
+    clearChoiceTimer();
+    stimulusStartedAt.current = null;
+    setChoiceSide(null);
+    setChoiceState("waiting");
+    setChoiceMessage("Wait for the dot...");
+    choiceTimeoutRef.current = window.setTimeout(() => {
+      stimulusStartedAt.current = performance.now();
+      setChoiceSide(currentChoiceTrial.targetSide);
+      setChoiceState("visible");
+      setChoiceMessage("Tap the matching side.");
+    }, currentChoiceTrial.delayMs);
+  }
+
+  async function finishChoiceTrial(side: "left" | "right") {
+    if (!currentChoiceTrial || choiceState !== "visible") {
+      return;
+    }
+
+    clearChoiceTimer();
+    const responseMs = stimulusStartedAt.current
+      ? Math.round(performance.now() - stimulusStartedAt.current)
+      : 0;
+    const correct = side === currentChoiceTrial.targetSide;
+
+    await recordTelemetry(
+      "choice_trial_completed",
+      {
+        trialId: currentChoiceTrial.id,
+        targetSide: currentChoiceTrial.targetSide,
+        selectedSide: side,
+        correct,
+        responseMs,
+      },
+      "choice-dots",
+    );
+    setChoiceState("responded");
+    setChoiceMessage(correct ? "Correct response saved." : "Wrong side saved.");
+  }
+
+  async function continueChoice() {
+    if (choiceIndex < CHOICE_DOT_TRIALS.length - 1) {
+      setChoiceIndex((value) => value + 1);
+      setChoiceState("idle");
+      setChoiceSide(null);
+      setChoiceMessage("Start the next trial when ready.");
+      return;
+    }
+
+    await recordTelemetry(
+      "task_completed",
+      { completedTrials: CHOICE_DOT_TRIALS.length },
+      "choice-dots",
+    );
+    await startTask("trail");
+    setTrailNextTarget(1);
+    setTrailErrors(0);
+    setTrailState("active");
+  }
+
+  async function handleTrailTap(nodeId: number) {
+    if (trailState !== "active") {
+      return;
+    }
+
+    if (nodeId !== trailNextTarget) {
+      setTrailErrors((value) => value + 1);
+      return;
+    }
+
+    if (nodeId < TRAIL_NODES.length) {
+      setTrailNextTarget(nodeId + 1);
+      return;
+    }
+
+    const completionMs = Math.round(performance.now() - trialStartedAt);
+    await recordTelemetry(
+      "trail_completed",
+      {
+        nodeCount: TRAIL_NODES.length,
+        errors: trailErrors,
+        completionMs,
+      },
+      "trail-path",
+    );
+    setTrailState("complete");
+  }
+
+  async function continueTrail() {
+    await recordTelemetry(
+      "task_completed",
+      { completed: true },
+      "trail-path",
+    );
+    await startTask("spatial");
+    setSpatialIndex(0);
+    setSpatialPhase("ready");
+    setSpatialInput([]);
+    setSpatialMessage("Watch the highlighted squares, then repeat the pattern.");
+  }
+
+  async function playSpatialSequence() {
+    if (!currentSpatialTrial || spatialPhase === "showing") {
+      return;
+    }
+
+    setSpatialPhase("showing");
+    setSpatialInput([]);
+    setSpatialMessage("Watch...");
+    await wait(350);
+
+    for (const cell of currentSpatialTrial.sequence) {
+      setSpatialActiveCell(cell);
+      await wait(420);
+      setSpatialActiveCell(null);
+      await wait(170);
+    }
+
+    setTrialStartedAt(performance.now());
+    setSpatialPhase("input");
+    setSpatialMessage("Repeat the pattern.");
+  }
+
+  async function handleSpatialCell(cell: number) {
+    if (!currentSpatialTrial || spatialPhase !== "input") {
+      return;
+    }
+
+    const nextInput = [...spatialInput, cell];
+    setSpatialInput(nextInput);
+
+    if (nextInput.length !== currentSpatialTrial.sequence.length) {
+      return;
+    }
+
+    const errors = nextInput.reduce(
+      (count, value, index) =>
+        count + (value === currentSpatialTrial.sequence[index] ? 0 : 1),
+      0,
+    );
+    const correct = errors === 0;
+    const responseMs = Math.round(performance.now() - trialStartedAt);
+
+    await recordTelemetry(
+      "spatial_trial_completed",
+      {
+        trialId: currentSpatialTrial.id,
+        spanLength: currentSpatialTrial.sequence.length,
+        errors,
+        correct,
+        responseMs,
+      },
+      "spatial-span",
+    );
+    setSpatialPhase("feedback");
+    setSpatialMessage(correct ? "Pattern matched." : "Pattern saved with errors.");
+  }
+
+  async function continueSpatial() {
+    if (spatialIndex < SPATIAL_SPAN_TRIALS.length - 1) {
+      setSpatialIndex((value) => value + 1);
+      setSpatialInput([]);
+      setSpatialPhase("ready");
+      setSpatialMessage("Start the next sequence when ready.");
+      return;
+    }
+
+    await recordTelemetry(
+      "task_completed",
+      { completedTrials: SPATIAL_SPAN_TRIALS.length },
+      "spatial-span",
+    );
+    await startTask("pattern");
+    setPatternIndex(0);
+    setPatternState("active");
+    setPatternMessage("Find the tile that matches the target.");
+  }
+
+  async function handlePatternChoice(index: number) {
+    if (!currentPatternTrial || patternState !== "active") {
+      return;
+    }
+
+    const correct = index === currentPatternTrial.targetIndex;
+    const responseMs = Math.round(performance.now() - trialStartedAt);
+
+    await recordTelemetry(
+      "pattern_trial_completed",
+      {
+        trialId: currentPatternTrial.id,
+        selectedIndex: index,
+        targetIndex: currentPatternTrial.targetIndex,
+        correct,
+        responseMs,
+      },
+      "pattern-match",
+    );
+    setPatternState("feedback");
+    setPatternMessage(correct ? "Target found." : "Response saved.");
+  }
+
+  async function continuePattern() {
+    if (patternIndex < PATTERN_MATCH_TRIALS.length - 1) {
+      setPatternIndex((value) => value + 1);
+      setPatternState("active");
+      setPatternMessage("Find the next target.");
+      setTrialStartedAt(performance.now());
+      return;
+    }
+
+    await recordTelemetry(
+      "task_completed",
+      { completedTrials: PATTERN_MATCH_TRIALS.length },
+      "pattern-match",
+    );
+    await startTask("design");
+    setDesignRound(0);
+    setDesignCells([]);
+    setDesignPatterns([]);
+    setDesignSaved(false);
+    setDesignMessage("Choose four dots to make a new pattern.");
+  }
+
+  function toggleDesignCell(cell: number) {
+    if (designSaved) {
+      return;
+    }
+
+    if (designCells.includes(cell)) {
+      setDesignCells((cells) => cells.filter((item) => item !== cell));
+      return;
+    }
+
+    if (designCells.length < 4) {
+      setDesignCells((cells) => [...cells, cell]);
+    }
+  }
+
+  async function submitDesignRound() {
+    if (designCells.length !== 4) {
+      return;
+    }
+
+    const patternKey = [...designCells].sort((a, b) => a - b).join("-");
+    const repeated = designPatterns.includes(patternKey);
+    const responseMs = Math.round(performance.now() - trialStartedAt);
+
+    await recordTelemetry(
+      "design_round_completed",
+      {
+        round: designRound + 1,
+        patternKey,
+        selectedCells: designCells,
+        repeated,
+        responseMs,
+      },
+      "design-grid",
+    );
+    setDesignPatterns((patterns) => [...patterns, patternKey]);
+    setDesignSaved(true);
+    setDesignMessage(
+      repeated
+        ? "Repeated pattern saved. Try a new design next."
+        : "New design saved.",
+    );
+  }
+
+  async function continueDesign() {
+    if (designRound < DESIGN_GRID_ROUNDS - 1) {
+      setDesignRound((value) => value + 1);
+      setDesignCells([]);
+      setDesignSaved(false);
+      setDesignMessage("Choose four dots for a new pattern.");
+      setTrialStartedAt(performance.now());
+      return;
+    }
+
+    await recordTelemetry(
+      "task_completed",
+      { completedRounds: DESIGN_GRID_ROUNDS },
+      "design-grid",
+    );
+    await startTask("auditory");
   }
 
   function clearAuditoryTimers() {
@@ -367,9 +848,9 @@ export function AssessmentRunner() {
           <span className="eyebrow">Candidate intake</span>
           <h1>Start a relational style assessment</h1>
           <p>
-            This MVP captures interaction telemetry for two short tasks and
-            generates an explainable report. Fairness context is optional and
-            only used for aggregate monitoring.
+            This MVP captures interaction telemetry from short non-word
+            cognitive mini-games and generates an explainable report. Fairness
+            context is optional and only used for aggregate monitoring.
           </p>
           <div className="form-grid">
             <label>
@@ -379,19 +860,6 @@ export function AssessmentRunner() {
                 onChange={(event) => setCandidateName(event.target.value)}
                 placeholder="Alex Morgan"
               />
-            </label>
-            <label>
-              Target role
-              <select
-                value={targetRoleId}
-                onChange={(event) => setTargetRoleId(event.target.value)}
-              >
-                {ROLE_CONFIGS.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
             </label>
             <label>
               Age band
@@ -433,18 +901,6 @@ export function AssessmentRunner() {
             </label>
           </div>
           <label>
-            Primary language
-            <input
-              value={demographics.language}
-              onChange={(event) =>
-                setDemographics((value) => ({
-                  ...value,
-                  language: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label>
             <span>
               <input
                 checked={demographics.consentToFairnessMonitoring}
@@ -470,59 +926,397 @@ export function AssessmentRunner() {
         </section>
       ) : null}
 
-      {stage === "asr" && currentAsrTrial ? (
+      {stage === "balloon" && currentBalloonRound ? (
         <section className="stack">
           <span className="eyebrow">
-            {TASKS[0].label} - trial {asrIndex + 1} of {ASR_TRIALS.length}
+            {TASKS[0].label} - round {balloonIndex + 1} of{" "}
+            {BALLOON_ROUNDS.length}
           </span>
-          <h2>{currentAsrTrial.context}</h2>
-          <p className="lede">{currentAsrTrial.prompt}</p>
-          <div className="option-list">
-            {currentAsrTrial.options.map((option) => (
+          <h2>Grow the balloon, then bank before it pops.</h2>
+          <p className="lede">{balloonMessage}</p>
+          <div className="panel stack" style={{ alignItems: "center" }}>
+            <div
+              aria-label={`Balloon size ${balloonPumps}`}
+              style={{
+                alignItems: "center",
+                background:
+                  balloonState === "burst"
+                    ? "var(--rose)"
+                    : "linear-gradient(145deg, #5d8df5, #7dc6a2)",
+                borderRadius: "999px 999px 780px 780px",
+                color: "#ffffff",
+                display: "flex",
+                fontSize: "2rem",
+                fontWeight: 900,
+                height: `${110 + balloonPumps * 14}px`,
+                justifyContent: "center",
+                transition: "all 160ms ease",
+                width: `${96 + balloonPumps * 12}px`,
+              }}
+            >
+              {balloonState === "burst" ? "POP" : balloonPoints}
+            </div>
+            <div className="grid three" style={{ width: "100%" }}>
+              <div className="metric">
+                <strong>{balloonPumps}</strong>
+                <span>Pumps this round</span>
+              </div>
+              <div className="metric">
+                <strong>{balloonPoints}</strong>
+                <span>Current round value</span>
+              </div>
+              <div className="metric">
+                <strong>{totalBankedPoints}</strong>
+                <span>Total banked</span>
+              </div>
+            </div>
+          </div>
+          <div className="actions">
+            {balloonState === "active" ? (
+              <>
+                <button
+                  className="primary"
+                  disabled={isBusy}
+                  onClick={() => void pumpBalloon()}
+                  type="button"
+                >
+                  Pump
+                </button>
+                <button
+                  className="secondary"
+                  disabled={isBusy || balloonPumps === 0}
+                  onClick={() => void bankBalloon()}
+                  type="button"
+                >
+                  Bank points
+                </button>
+              </>
+            ) : (
               <button
-                aria-pressed={asrChoice === option.id}
-                className="option-button"
-                disabled={Boolean(asrFeedback)}
-                key={option.id}
-                onClick={() => setAsrChoice(option.id)}
+                className="primary"
+                onClick={() => void continueBalloon()}
                 type="button"
               >
-                <strong>{option.label}</strong>
-                <p>{option.relationalCue}</p>
+                {balloonIndex < BALLOON_ROUNDS.length - 1
+                  ? "Next balloon"
+                  : "Continue to Choice Dots"}
+              </button>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {stage === "choice" && currentChoiceTrial ? (
+        <section className="stack">
+          <span className="eyebrow">
+            {taskLabel("choice-dots")} - trial {choiceIndex + 1} of{" "}
+            {CHOICE_DOT_TRIALS.length}
+          </span>
+          <h2>Tap the side where the dot appears.</h2>
+          <p className="lede">{choiceMessage}</p>
+          <div className="grid two">
+            {(["left", "right"] as const).map((side) => (
+              <button
+                className="option-button"
+                disabled={choiceState !== "visible"}
+                key={side}
+                onClick={() => void finishChoiceTrial(side)}
+                style={{
+                  alignItems: "center",
+                  display: "flex",
+                  height: 170,
+                  justifyContent: "center",
+                }}
+                type="button"
+              >
+                {choiceSide === side ? (
+                  <span
+                    aria-label={`${side} dot`}
+                    style={{
+                      background: "var(--accent)",
+                      borderRadius: "999px",
+                      display: "block",
+                      height: 72,
+                      width: 72,
+                    }}
+                  />
+                ) : null}
               </button>
             ))}
           </div>
-          <label>
-            Confidence: {confidence}%
-            <input
-              disabled={Boolean(asrFeedback)}
-              max="100"
-              min="0"
-              onChange={(event) => setConfidence(Number(event.target.value))}
-              type="range"
-              value={confidence}
-            />
-          </label>
-          {asrFeedback ? (
-            <div className="warning">{asrFeedback}</div>
-          ) : null}
           <div className="actions">
-            {!asrFeedback ? (
+            {choiceState === "idle" ? (
               <button
                 className="primary"
-                disabled={!asrChoice || isBusy}
-                onClick={() => void submitAsrResponse()}
+                onClick={() => void startChoiceTrial()}
                 type="button"
               >
-                Submit response
+                Start trial
+              </button>
+            ) : null}
+            {choiceState === "responded" ? (
+              <button
+                className="primary"
+                onClick={() => void continueChoice()}
+                type="button"
+              >
+                {choiceIndex < CHOICE_DOT_TRIALS.length - 1
+                  ? "Next dot"
+                  : "Continue to Trail Path"}
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {stage === "trail" ? (
+        <section className="stack">
+          <span className="eyebrow">{taskLabel("trail-path")}</span>
+          <h2>Tap the circles in order.</h2>
+          <p className="lede">
+            Next target: {trailNextTarget <= TRAIL_NODES.length ? trailNextTarget : "done"}.
+            Errors: {trailErrors}.
+          </p>
+          <div
+            className="panel"
+            style={{
+              height: 360,
+              position: "relative",
+            }}
+          >
+            {TRAIL_NODES.map((node) => {
+              const isDone = node.id < trailNextTarget;
+              const isNext = node.id === trailNextTarget;
+
+              return (
+                <button
+                  aria-label={`Trail node ${node.id}`}
+                  className="primary"
+                  disabled={trailState === "complete"}
+                  key={node.id}
+                  onClick={() => void handleTrailTap(node.id)}
+                  style={{
+                    background: isDone
+                      ? "var(--green)"
+                      : isNext
+                        ? "var(--accent)"
+                        : "#ffffff",
+                    border: "2px solid var(--accent)",
+                    color: isDone || isNext ? "#ffffff" : "var(--ink)",
+                    height: 52,
+                    left: `${node.x}%`,
+                    padding: 0,
+                    position: "absolute",
+                    top: `${node.y}%`,
+                    transform: "translate(-50%, -50%)",
+                    width: 52,
+                  }}
+                  type="button"
+                >
+                  {node.id}
+                </button>
+              );
+            })}
+          </div>
+          {trailState === "complete" ? (
+            <div className="actions">
+              <button
+                className="primary"
+                onClick={() => void continueTrail()}
+                type="button"
+              >
+                Continue to Spatial Span
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {stage === "spatial" && currentSpatialTrial ? (
+        <section className="stack">
+          <span className="eyebrow">
+            {taskLabel("spatial-span")} - round {spatialIndex + 1} of{" "}
+            {SPATIAL_SPAN_TRIALS.length}
+          </span>
+          <h2>Watch, then repeat the spatial pattern.</h2>
+          <p className="lede">{spatialMessage}</p>
+          <div
+            className="panel"
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            }}
+          >
+            {Array.from({ length: 9 }, (_, cell) => (
+              <button
+                aria-label={`Spatial cell ${cell + 1}`}
+                className="option-button"
+                disabled={spatialPhase !== "input"}
+                key={cell}
+                onClick={() => void handleSpatialCell(cell)}
+                style={{
+                  background:
+                    spatialActiveCell === cell
+                      ? "var(--accent)"
+                      : spatialInput.includes(cell)
+                        ? "#edf7f2"
+                        : "#ffffff",
+                  height: 76,
+                }}
+                type="button"
+              />
+            ))}
+          </div>
+          <div className="actions">
+            {spatialPhase === "ready" ? (
+              <button
+                className="primary"
+                onClick={() => void playSpatialSequence()}
+                type="button"
+              >
+                Show pattern
+              </button>
+            ) : null}
+            {spatialPhase === "feedback" ? (
+              <button
+                className="primary"
+                onClick={() => void continueSpatial()}
+                type="button"
+              >
+                {spatialIndex < SPATIAL_SPAN_TRIALS.length - 1
+                  ? "Next pattern"
+                  : "Continue to Pattern Match"}
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {stage === "pattern" && currentPatternTrial ? (
+        <section className="stack">
+          <span className="eyebrow">
+            {taskLabel("pattern-match")} - round {patternIndex + 1} of{" "}
+            {PATTERN_MATCH_TRIALS.length}
+          </span>
+          <h2>Find the matching tile.</h2>
+          <p className="lede">{patternMessage}</p>
+          <div className="panel stack" style={{ alignItems: "center" }}>
+            <span className="pill">Target</span>
+            {renderPatternTile(currentPatternTrial.tiles[currentPatternTrial.targetIndex], 70)}
+          </div>
+          <div
+            className="panel"
+            style={{
+              display: "grid",
+              gap: 14,
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              justifyItems: "center",
+            }}
+          >
+            {currentPatternTrial.tiles.map((tile, index) => (
+              <button
+                aria-label={`Pattern tile ${index + 1}`}
+                className="option-button"
+                disabled={patternState !== "active"}
+                key={`${tile.shape}-${tile.color}-${index}`}
+                onClick={() => void handlePatternChoice(index)}
+                style={{
+                  alignItems: "center",
+                  display: "flex",
+                  justifyContent: "center",
+                  minHeight: 92,
+                  width: "100%",
+                }}
+                type="button"
+              >
+                {renderPatternTile(tile)}
+              </button>
+            ))}
+          </div>
+          {patternState === "feedback" ? (
+            <div className="actions">
+              <button
+                className="primary"
+                onClick={() => void continuePattern()}
+                type="button"
+              >
+                {patternIndex < PATTERN_MATCH_TRIALS.length - 1
+                  ? "Next target"
+                  : "Continue to Design Grid"}
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {stage === "design" ? (
+        <section className="stack">
+          <span className="eyebrow">
+            {taskLabel("design-grid")} - round {designRound + 1} of{" "}
+            {DESIGN_GRID_ROUNDS}
+          </span>
+          <h2>Create a new four-dot design.</h2>
+          <p className="lede">{designMessage}</p>
+          <div
+            className="panel"
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            }}
+          >
+            {Array.from({ length: 16 }, (_, cell) => (
+              <button
+                aria-label={`Design dot ${cell + 1}`}
+                className="option-button"
+                key={cell}
+                onClick={() => toggleDesignCell(cell)}
+                style={{
+                  alignItems: "center",
+                  background: designCells.includes(cell)
+                    ? "var(--accent)"
+                    : "#ffffff",
+                  display: "flex",
+                  height: 66,
+                  justifyContent: "center",
+                }}
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    background: designCells.includes(cell)
+                      ? "#ffffff"
+                      : "var(--muted)",
+                    borderRadius: "999px",
+                    display: "block",
+                    height: 16,
+                    width: 16,
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+          <div className="actions">
+            {!designSaved ? (
+              <button
+                className="primary"
+                disabled={designCells.length !== 4}
+                onClick={() => void submitDesignRound()}
+                type="button"
+              >
+                Save design
               </button>
             ) : (
               <button
                 className="primary"
-                onClick={() => void continueAsr()}
+                onClick={() => void continueDesign()}
                 type="button"
               >
-                Continue
+                {designRound < DESIGN_GRID_ROUNDS - 1
+                  ? "Next design"
+                  : "Continue to Auditory Screen"}
               </button>
             )}
           </div>
@@ -532,7 +1326,7 @@ export function AssessmentRunner() {
       {stage === "auditory" && currentAuditoryTrial ? (
         <section className="stack">
           <span className="eyebrow">
-            {TASKS[1].label} - trial {auditoryIndex + 1} of{" "}
+            {taskLabel("auditory-screen")} - trial {auditoryIndex + 1} of{" "}
             {AUDITORY_TRIALS.length}
           </span>
           <h2>Listen for the target tone</h2>

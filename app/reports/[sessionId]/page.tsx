@@ -16,7 +16,7 @@ export default async function ReportPage({
     notFound();
   }
 
-  const { report, session, events } = bundle;
+  const { report, events } = bundle;
 
   return (
     <main className="page stack">
@@ -44,15 +44,49 @@ export default async function ReportPage({
             <span>Telemetry events</span>
           </div>
           <div className="metric">
-            <strong>{session.targetRoleId}</strong>
-            <span>Target role</span>
+            <strong>{report.profileMatches[0]?.label}</strong>
+            <span>Assigned by system</span>
           </div>
           <div className="metric">
             <strong>{new Date(report.generatedAt).toLocaleDateString()}</strong>
             <span>Generated</span>
           </div>
+          <div className="metric">
+            <strong>{report.modelVersion || "legacy"}</strong>
+            <span>Model version</span>
+          </div>
         </div>
       </section>
+
+      {report.constructScores?.length ? (
+        <section className="card stack">
+          <h2>Open cognitive construct layer</h2>
+          <p>
+            Task metrics are first mapped into transparent cognitive constructs,
+            then those constructs feed the relational style traits below.
+          </p>
+          <div className="grid three">
+            {report.constructScores.map((construct) => (
+              <div className="panel stack" key={construct.key}>
+                <div>
+                  <h3>
+                    {construct.label}: {construct.score}
+                  </h3>
+                  <div className="score-bar" aria-hidden="true">
+                    <span style={{ width: `${construct.score}%` }} />
+                  </div>
+                </div>
+                <p>{construct.explanation}</p>
+                <ul>
+                  {construct.evidence.slice(0, 3).map((evidence) => (
+                    <li key={evidence}>{evidence}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid two">
         <div className="card stack">

@@ -1,18 +1,10 @@
-import type { RoleConfig, TaskId, TraitKey } from "@/lib/types";
+import type { TaskId, TraitKey } from "@/lib/types";
 
-export type AsrOption = {
+export type BalloonRound = {
   id: string;
-  label: string;
-  relationalCue: string;
-};
-
-export type AsrTrial = {
-  id: string;
-  prompt: string;
-  context: string;
-  options: AsrOption[];
-  consensusOptionId: string;
-  learningSignal: string;
+  burstAt: number;
+  maxPumps: number;
+  rewardPerPump: number;
 };
 
 export type AuditoryTrial = {
@@ -20,6 +12,33 @@ export type AuditoryTrial = {
   signalPresent: boolean;
   frequencyHz: number;
   delayMs: number;
+};
+
+export type ChoiceDotTrial = {
+  id: string;
+  targetSide: "left" | "right";
+  delayMs: number;
+};
+
+export type TrailNode = {
+  id: number;
+  x: number;
+  y: number;
+};
+
+export type SpatialSpanTrial = {
+  id: string;
+  sequence: number[];
+};
+
+export type PatternMatchTrial = {
+  id: string;
+  targetIndex: number;
+  tiles: Array<{
+    shape: "circle" | "square" | "diamond";
+    color: string;
+    rotate?: number;
+  }>;
 };
 
 export type AssessmentTask = {
@@ -32,16 +51,81 @@ export type AssessmentTask = {
 
 export const TASKS: AssessmentTask[] = [
   {
-    id: "asr-calibration",
-    label: "ASR Calibration",
+    id: "balloon-pop",
+    label: "Balloon Pop",
     cognitiveBasis:
-      "Confidence calibration and affective signal recognition under mild ambiguity.",
+      "Risk-reward learning, inhibitory control, reward sensitivity, and adaptation after loss.",
     relationalSignal:
-      "How accurately and humbly a person interprets relational cues before reacting.",
+      "How a person balances initiative, restraint, and learning from feedback in uncertain situations.",
     instructions: [
-      "Read each short interaction.",
-      "Select the relational cue you think is most likely.",
-      "Set your confidence level before submitting.",
+      "Pump the balloon to grow its value.",
+      "Bank before it pops to keep the points.",
+      "Each balloon has a different hidden pop point.",
+    ],
+  },
+  {
+    id: "choice-dots",
+    label: "Choice Dots",
+    cognitiveBasis:
+      "Choice reaction time, visual attention, lateralized responding, and error control.",
+    relationalSignal:
+      "How quickly and accurately a person responds when the right action depends on context.",
+    instructions: [
+      "Wait for the dot to appear.",
+      "Tap the matching side.",
+      "Accuracy matters more than guessing early.",
+    ],
+  },
+  {
+    id: "trail-path",
+    label: "Trail Path",
+    cognitiveBasis:
+      "Visual sequencing, planning, cognitive flexibility, and error monitoring.",
+    relationalSignal:
+      "How directly a person moves through a changing situation while recovering from missteps.",
+    instructions: [
+      "Tap the circles in order.",
+      "Wrong taps count as errors.",
+      "Complete the path as directly as you can.",
+    ],
+  },
+  {
+    id: "spatial-span",
+    label: "Spatial Span",
+    cognitiveBasis:
+      "Visuospatial working memory, sequence retention, and attentional control.",
+    relationalSignal:
+      "How much interaction context a person can hold before responding.",
+    instructions: [
+      "Watch the highlighted squares.",
+      "Repeat the pattern in the same order.",
+      "Sequences get longer across rounds.",
+    ],
+  },
+  {
+    id: "pattern-match",
+    label: "Pattern Match",
+    cognitiveBasis:
+      "Visual search, perceptual discrimination, sustained attention, and careful responding.",
+    relationalSignal:
+      "How accurately a person detects relevant signals amid similar distractors.",
+    instructions: [
+      "Find the tile that matches the target.",
+      "Tap one tile per round.",
+      "Balance speed with accuracy.",
+    ],
+  },
+  {
+    id: "design-grid",
+    label: "Design Grid",
+    cognitiveBasis:
+      "Design fluency, novelty generation, repetition inhibition, and planning.",
+    relationalSignal:
+      "How flexibly a person generates new approaches without repeating stale patterns.",
+    instructions: [
+      "Create a four-dot pattern.",
+      "Try not to repeat earlier patterns.",
+      "Each round should be a new design.",
     ],
   },
   {
@@ -59,112 +143,13 @@ export const TASKS: AssessmentTask[] = [
   },
 ];
 
-export const ASR_TRIALS: AsrTrial[] = [
-  {
-    id: "asr-1",
-    context: "A project partner replies after a tense meeting.",
-    prompt:
-      '"I can take another pass at the notes if that helps. I just want us to be aligned before we send them."',
-    options: [
-      {
-        id: "repair",
-        label: "Repair attempt",
-        relationalCue: "They are trying to reduce friction and restore shared ground.",
-      },
-      {
-        id: "withdrawal",
-        label: "Withdrawal",
-        relationalCue: "They are distancing themselves from the collaboration.",
-      },
-      {
-        id: "dominance",
-        label: "Control bid",
-        relationalCue: "They are trying to take over the decision.",
-      },
-    ],
-    consensusOptionId: "repair",
-    learningSignal:
-      "The statement offers help and names alignment, which usually signals repair rather than control.",
-  },
-  {
-    id: "asr-2",
-    context: "A friend responds to a last-minute change of plans.",
-    prompt:
-      '"Okay. I wish I had known earlier, but I understand things came up."',
-    options: [
-      {
-        id: "boundary",
-        label: "Boundary with continued connection",
-        relationalCue:
-          "They are naming an impact while preserving goodwill.",
-      },
-      {
-        id: "rejection",
-        label: "Rejection",
-        relationalCue: "They are ending the relationship or withdrawing care.",
-      },
-      {
-        id: "approval",
-        label: "Unqualified approval",
-        relationalCue: "They have no unmet need or concern.",
-      },
-    ],
-    consensusOptionId: "boundary",
-    learningSignal:
-      "The phrase combines impact language with understanding, a common cue for a connected boundary.",
-  },
-  {
-    id: "asr-3",
-    context: "A teammate sees a mistake in a shared document.",
-    prompt:
-      '"Can we slow down for a second and check this section together? I may be missing something."',
-    options: [
-      {
-        id: "collaborative-check",
-        label: "Collaborative check",
-        relationalCue: "They are inviting joint attention without assigning blame.",
-      },
-      {
-        id: "avoidance",
-        label: "Avoidance",
-        relationalCue: "They are avoiding accountability for a problem.",
-      },
-      {
-        id: "criticism",
-        label: "Personal criticism",
-        relationalCue: "They are implying incompetence.",
-      },
-    ],
-    consensusOptionId: "collaborative-check",
-    learningSignal:
-      "Joint language and uncertainty markers point toward collaboration, not personal criticism.",
-  },
-  {
-    id: "asr-4",
-    context: "A new colleague asks about your preferred workflow.",
-    prompt:
-      '"Do you like quick check-ins, or would you rather I collect questions and send one message later?"',
-    options: [
-      {
-        id: "adaptation",
-        label: "Adaptive preference seeking",
-        relationalCue: "They are trying to match communication to your needs.",
-      },
-      {
-        id: "surveillance",
-        label: "Surveillance",
-        relationalCue: "They are monitoring your work too closely.",
-      },
-      {
-        id: "indifference",
-        label: "Indifference",
-        relationalCue: "They are disengaged from collaboration quality.",
-      },
-    ],
-    consensusOptionId: "adaptation",
-    learningSignal:
-      "Offering options and asking for preference is a cue for adaptive coordination.",
-  },
+export const BALLOON_ROUNDS: BalloonRound[] = [
+  { id: "balloon-1", burstAt: 7, maxPumps: 12, rewardPerPump: 4 },
+  { id: "balloon-2", burstAt: 10, maxPumps: 12, rewardPerPump: 4 },
+  { id: "balloon-3", burstAt: 5, maxPumps: 12, rewardPerPump: 5 },
+  { id: "balloon-4", burstAt: 11, maxPumps: 12, rewardPerPump: 4 },
+  { id: "balloon-5", burstAt: 8, maxPumps: 12, rewardPerPump: 5 },
+  { id: "balloon-6", burstAt: 6, maxPumps: 12, rewardPerPump: 6 },
 ];
 
 export const AUDITORY_TRIALS: AuditoryTrial[] = [
@@ -178,6 +163,83 @@ export const AUDITORY_TRIALS: AuditoryTrial[] = [
   { id: "aud-8", signalPresent: true, frequencyHz: 660, delayMs: 1150 },
 ];
 
+export const CHOICE_DOT_TRIALS: ChoiceDotTrial[] = [
+  { id: "choice-1", targetSide: "left", delayMs: 650 },
+  { id: "choice-2", targetSide: "right", delayMs: 820 },
+  { id: "choice-3", targetSide: "right", delayMs: 560 },
+  { id: "choice-4", targetSide: "left", delayMs: 940 },
+  { id: "choice-5", targetSide: "right", delayMs: 700 },
+  { id: "choice-6", targetSide: "left", delayMs: 880 },
+];
+
+export const TRAIL_NODES: TrailNode[] = [
+  { id: 1, x: 14, y: 22 },
+  { id: 2, x: 72, y: 14 },
+  { id: 3, x: 58, y: 46 },
+  { id: 4, x: 24, y: 54 },
+  { id: 5, x: 38, y: 80 },
+  { id: 6, x: 84, y: 72 },
+  { id: 7, x: 68, y: 88 },
+  { id: 8, x: 16, y: 76 },
+];
+
+export const SPATIAL_SPAN_TRIALS: SpatialSpanTrial[] = [
+  { id: "span-1", sequence: [0, 4, 2] },
+  { id: "span-2", sequence: [6, 3, 8, 1] },
+  { id: "span-3", sequence: [2, 5, 0, 7, 4] },
+  { id: "span-4", sequence: [8, 1, 6, 3, 0, 5] },
+];
+
+export const PATTERN_MATCH_TRIALS: PatternMatchTrial[] = [
+  {
+    id: "pattern-1",
+    targetIndex: 5,
+    tiles: [
+      { shape: "circle", color: "#2d6cdf" },
+      { shape: "square", color: "#2f7d5c" },
+      { shape: "diamond", color: "#ae6b16" },
+      { shape: "circle", color: "#b4495b" },
+      { shape: "square", color: "#2d6cdf" },
+      { shape: "diamond", color: "#2d6cdf" },
+      { shape: "diamond", color: "#2f7d5c" },
+      { shape: "circle", color: "#ae6b16" },
+      { shape: "square", color: "#b4495b" },
+    ],
+  },
+  {
+    id: "pattern-2",
+    targetIndex: 1,
+    tiles: [
+      { shape: "square", color: "#2f7d5c" },
+      { shape: "circle", color: "#2f7d5c" },
+      { shape: "diamond", color: "#2f7d5c" },
+      { shape: "circle", color: "#2d6cdf" },
+      { shape: "square", color: "#ae6b16" },
+      { shape: "diamond", color: "#b4495b" },
+      { shape: "circle", color: "#ae6b16" },
+      { shape: "square", color: "#2d6cdf" },
+      { shape: "diamond", color: "#2d6cdf" },
+    ],
+  },
+  {
+    id: "pattern-3",
+    targetIndex: 7,
+    tiles: [
+      { shape: "diamond", color: "#b4495b" },
+      { shape: "circle", color: "#b4495b" },
+      { shape: "square", color: "#2f7d5c" },
+      { shape: "diamond", color: "#2f7d5c" },
+      { shape: "circle", color: "#2d6cdf" },
+      { shape: "square", color: "#ae6b16" },
+      { shape: "circle", color: "#ae6b16" },
+      { shape: "square", color: "#b4495b" },
+      { shape: "diamond", color: "#2d6cdf" },
+    ],
+  },
+];
+
+export const DESIGN_GRID_ROUNDS = 4;
+
 export const TRAIT_LABELS: Record<TraitKey, string> = {
   attunement: "Relational attunement",
   emotionalCalibration: "Emotional calibration",
@@ -186,51 +248,6 @@ export const TRAIT_LABELS: Record<TraitKey, string> = {
   boundaryClarity: "Boundary clarity",
   socialLearningOrientation: "Social learning orientation",
 };
-
-export const ROLE_CONFIGS: RoleConfig[] = [
-  {
-    id: "relationship-coach",
-    label: "Relationship coach",
-    description:
-      "High-touch role emphasizing accurate cue reading, repair, and calm pacing.",
-    traitWeights: {
-      attunement: 0.22,
-      emotionalCalibration: 0.24,
-      responseFlexibility: 0.16,
-      patienceUnderAmbiguity: 0.18,
-      boundaryClarity: 0.08,
-      socialLearningOrientation: 0.12,
-    },
-  },
-  {
-    id: "community-manager",
-    label: "Community manager",
-    description:
-      "Group-facing role balancing listening, boundary setting, and adaptive response.",
-    traitWeights: {
-      attunement: 0.2,
-      emotionalCalibration: 0.16,
-      responseFlexibility: 0.18,
-      patienceUnderAmbiguity: 0.12,
-      boundaryClarity: 0.18,
-      socialLearningOrientation: 0.16,
-    },
-  },
-  {
-    id: "care-coordinator",
-    label: "Care coordinator",
-    description:
-      "Support role where sustained attention, restraint, and clear communication matter.",
-    traitWeights: {
-      attunement: 0.18,
-      emotionalCalibration: 0.18,
-      responseFlexibility: 0.14,
-      patienceUnderAmbiguity: 0.18,
-      boundaryClarity: 0.16,
-      socialLearningOrientation: 0.16,
-    },
-  },
-];
 
 export const RELATIONAL_STYLE_PROFILES = [
   {

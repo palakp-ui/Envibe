@@ -8,20 +8,32 @@ flows.
 ## What is implemented
 
 - Candidate intake with optional fairness-monitoring consent.
-- Two browser-based behavioral tasks:
-  - **ASR Calibration**: relational cue interpretation and confidence
-    calibration under ambiguity.
+- Seven browser-based, non-word behavioral mini-games:
+  - **Balloon Pop**: a visual risk-reward mini-game that maps pumping,
+    banking, popping, and learning-after-loss behavior to psychological trait
+    signals.
+  - **Choice Dots**: a left/right reaction-time task for context-sensitive
+    speed, accuracy, and inhibition.
+  - **Trail Path**: a visual sequencing path task for planning, flexibility, and
+    error monitoring.
+  - **Spatial Span**: a visual grid sequence task for visuospatial working
+    memory.
+  - **Pattern Match**: a shape/color search task for signal detection and
+    perceptual accuracy.
+  - **Design Grid**: a four-dot pattern builder for design fluency, novelty, and
+    repetition inhibition.
   - **Auditory Screen**: target-tone detection, response timing, and false-alarm
     restraint.
 - Backend telemetry capture through Next.js API routes.
 - Server-side scoring pipeline that produces:
   - task metrics,
   - relational trait scores,
-  - relational style profile matches,
+  - system-assigned relational style profile matches,
   - explainable report evidence and caveats.
-- Developer dashboard for candidate/profile comparison and role-weighted scores.
-- Admin governance console with audit logs, role configuration, and fairness
-  monitoring hooks.
+- Developer dashboard for candidate/profile comparison and cognitive trait
+  breakdowns.
+- Admin governance console with audit logs, cognitive-task governance notes, and
+  fairness monitoring hooks.
 - File-backed MVP persistence in `.relational-data/store.json`.
 
 ## Getting started
@@ -53,11 +65,29 @@ npm run build
 - **Scoring module** maps task metrics to relational traits using transparent
   weighted formulas.
 - **Storage module** writes an auditable JSON store suitable for MVP demos.
+- **Neuropsych data inventory** in `docs/neuropsych-data-inventory.md` maps the
+  uploaded data dictionaries to future mini-games, validation measures, and
+  relational-style trait hypotheses.
+- **Open cognitive model** in `docs/open-cognitive-model.md` documents the
+  non-proprietary Pymetrics-like architecture from mini-game telemetry to
+  constructs, traits, and profile matches.
+- **Synthetic profile reverse engineering** in
+  `docs/synthetic-profile-reverse-engineering.md` explains how to turn uploaded
+  cognitive exports into pseudonymous construct, trait, and archetype summaries.
+
+## Data analysis utilities
+
+```bash
+npm run analyze:synthetic-profiles -- --uploads-dir /path/to/uploaded/files
+```
+
+The analysis utility writes outputs under `.analysis/` and does not commit raw
+uploaded data.
 
 ## Interpretation guardrails
 
 The report is descriptive and should not be treated as a clinical diagnosis, a
 standalone hiring recommendation, or a deterministic measure of relationship
-quality. Device setup, language context, browser audio behavior, and task
+quality. Device setup, browser audio behavior, pointer/touch behavior, and task
 completion quality can influence scores. Fairness monitoring is aggregate-only
 and requires stronger governance before consequential deployment.
