@@ -71,6 +71,18 @@ npm run build
 - **Open cognitive model** in `docs/open-cognitive-model.md` documents the
   non-proprietary Pymetrics-like architecture from mini-game telemetry to
   constructs, traits, and profile matches.
+- **Synthetic profile reverse engineering** in
+  `docs/synthetic-profile-reverse-engineering.md` explains how to turn uploaded
+  cognitive exports into pseudonymous construct, trait, and archetype summaries.
+
+## Data analysis utilities
+
+```bash
+npm run analyze:synthetic-profiles -- --uploads-dir /path/to/uploaded/files
+```
+
+The analysis utility writes outputs under `.analysis/` and does not commit raw
+uploaded data.
 
 ## Interpretation guardrails
 

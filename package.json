@@ -4,6 +4,7 @@
   "private": true,
   "description": "MVP behavioral assessment platform for relational style profiling.",
   "scripts": {
+    "analyze:synthetic-profiles": "python3 scripts/reverse_engineer_synthetic_profiles.py",
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
